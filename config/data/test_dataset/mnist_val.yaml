@@ -1,0 +1,6 @@
+_target_: loaders.MnistDataset
+stage: 
+  _target_: loaders.base.Stage
+  _args_: [val]
+data_path: data/
+preload: False

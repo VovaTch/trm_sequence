@@ -1,0 +1,5 @@
+_target_: models.FCN
+hidden_size: 256
+num_layers: 2
+activation_function:
+  _target_: torch.nn.LeakyReLU

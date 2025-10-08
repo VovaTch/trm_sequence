@@ -1,0 +1,9 @@
+- _target_: loss.components.BasicClassificationLoss
+  name: ce_loss
+  weight: 1.0
+  base_loss: 
+    _target_: torch.nn.CrossEntropyLoss
+
+- _target_: loss.components.PercentCorrect
+  name: correct_ratio_metric
+  weight: 1.0

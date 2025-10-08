@@ -1,0 +1,7 @@
+defaults:
+  - train_dataset: mnist_train
+  - val_dataset: mnist_val
+  - test_dataset: mnist_val
+
+_target_: loaders.SeparatedSetModule
+learning_params: ${learning}

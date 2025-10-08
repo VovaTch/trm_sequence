@@ -1,0 +1,17 @@
+defaults:
+  - _self_
+  - data: standard_module
+  - learning: standard
+  - optimizer: adamw_standard
+  - scheduler: none
+  - loss: mnist
+  - model: fcn
+  - module: mnist_cls
+
+
+project_name: LightningTemplate
+model_name: mnist_fcn
+resume: null
+
+# Optimizations
+use_torch_compile: False
