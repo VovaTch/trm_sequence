@@ -4,10 +4,9 @@ defaults:
   - learning: standard
   - optimizer: adamw_standard
   - scheduler: none
-  - loss: mnist
-  - model: fcn
-  - module: mnist_cls
-
+  - loss: trm
+  - model: trm
+  - module: trm_cls
 
 project_name: LightningTemplate
 model_name: mnist_fcn
@@ -15,3 +14,4 @@ resume: null
 
 # Optimizations
 use_torch_compile: False
+

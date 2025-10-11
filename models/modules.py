@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from loss.aggregators import LossOutput
-from models.models import FCN
+from models.models.trm import TinyRecursiveModel
 from utils.learning import LearningParameters
 
 from .base import BaseLightningModule, LossAggregator
@@ -17,8 +17,9 @@ class MnistClassifierModule(BaseLightningModule):
 
     def __init__(
         self,
-        model: FCN,
+        model: TinyRecursiveModel,
         learning_params: LearningParameters,
+        supervision_steps: int = 4,
         transforms: nn.Sequential | None = None,
         loss_aggregator: LossAggregator | None = None,
         optimizer_cfg: dict[str, Any] | None = None,
@@ -43,8 +44,11 @@ class MnistClassifierModule(BaseLightningModule):
             optimizer_cfg,
             scheduler_cfg,
         )
+        self.automatic_optimization = False
+        self._supervision_steps = supervision_steps
+        self.model = model
 
-    def forward(self, x: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    def forward(self, input: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         """
         Forward pass of the MNIST classifier.
 
@@ -54,10 +58,13 @@ class MnistClassifierModule(BaseLightningModule):
         Returns:
             dict[str, torch.Tensor]: Output dictionary containing "logits" tensor.
         """
-        outputs = self.model(x["images"])
-        return {"logits": outputs}
+        x = input["input"]
+        y = input["inter output"]
+        z = input["latent"]
+        y, z, y_hat, q_hat = self.model.deep_recursion(x, y, z)
+        return {"inter output": y, "latent": z, "output": y_hat, "stop": q_hat}
 
-    def step(self, batch: dict[str, Any], phase: str) -> torch.Tensor | None:
+    def step(self, batch: dict[str, Any], phase: str) -> None:
         """
         Performs a single training/validation step.
 
@@ -68,11 +75,36 @@ class MnistClassifierModule(BaseLightningModule):
         Returns:
             torch.Tensor | None: The total loss if available, otherwise None.
         """
-        outputs = self(batch)
-        if self.loss_aggregator is not None:
-            loss = self.loss_aggregator(outputs, batch)
-            loss_total = self.log_loss(loss, phase)
-            return loss_total
+        y_init = torch.zeros((batch["images"].shape[0], 10)).to(batch["images"].device)
+        z_init = torch.zeros((batch["images"].shape[0], 16)).to(batch["images"].device)
+
+        y = y_init
+        z = z_init
+
+        optimizer = self.optimizers()
+        if isinstance(optimizer, list):
+            optimizer = optimizer[0]
+        optimizer.zero_grad()
+
+        for _ in range(self._supervision_steps):
+            sup_step_output = self.forward(
+                {"input": batch["images"], "inter output": y, "latent": z}
+            )
+            if self.loss_aggregator is None:
+                continue
+            sup_step_output["logits"] = sup_step_output["output"]
+
+            loss = self.loss_aggregator(sup_step_output, batch)
+            self.log_loss(loss, phase)
+
+            if phase != "training":
+                continue
+
+            self.manual_backward(loss.total)
+            optimizer.step()
+
+            if torch.all(sup_step_output["stop"] > 0):
+                break
 
     def log_loss(self, loss: LossOutput, phase: str) -> torch.Tensor:
         """
@@ -88,16 +120,16 @@ class MnistClassifierModule(BaseLightningModule):
         for name in loss.individual:
             log_name = f"{phase} {name.replace('_', ' ')}"
             self.log(
-                log_name, 
-                loss.individual[name], 
-                batch_size=self.learning_params.batch_size, 
-                sync_dist=True
+                log_name,
+                loss.individual[name],
+                batch_size=self.learning_params.batch_size,
+                sync_dist=True,
             )
         self.log(
-            f"{phase} total loss", 
-            loss.total, 
-            prog_bar=True, 
-            batch_size=self.learning_params.batch_size, 
-            sync_dist=True
+            f"{phase} total loss",
+            loss.total,
+            prog_bar=True,
+            batch_size=self.learning_params.batch_size,
+            sync_dist=True,
         )
         return loss.total

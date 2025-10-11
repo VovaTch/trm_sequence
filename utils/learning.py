@@ -95,7 +95,7 @@ def get_trainer(learning_parameters: LearningParameters) -> L.Trainer:
 
     model_summary = ModelSummary(max_depth=2)
     trainer = L.Trainer(
-        gradient_clip_val=learning_parameters.gradient_clip,
+        # gradient_clip_val=learning_parameters.gradient_clip,
         logger=loggers,
         callbacks=[
             early_stopping,

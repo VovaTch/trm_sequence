@@ -1,0 +1,18 @@
+_target_: models.models.TinyRecursiveModel
+core:
+  _target_: models.models.backbone.MLPCore
+  input_dim: 784
+  output_dim: 10
+  latent_dim: 16
+  num_layers: 2
+  hidden_dim: 128
+z_loop: 6
+y_loop: 3
+input_embedding:
+  _target_: torch.nn.Identity
+output_head:
+  _target_: torch.nn.Identity
+q_head:
+  _target_: torch.nn.Linear
+  in_features: 10
+  out_features: 1

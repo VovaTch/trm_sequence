@@ -74,46 +74,32 @@ class BasicClassificationLoss(LossComponent):
 
 
 @dataclass
-class ReconstructionLoss(LossComponent):
+class HaltingCrossEntropy(LossComponent):
     """
-    Reconstruction loss of slices or images most commonly.
+    Cross entropy loss for computing the halting probability of the TRM.
 
-    Args:
-    *   name (str): The name of the loss.
-    *   weight (float): The weight of the loss.
-    *   base_loss (nn.Module): The base loss function.
-    *   rec_key (str): The key for accessing the reconstruction values in the prediction and target dictionaries.
-    *   transform_func (Callable[[torch.Tensor], torch.Tensor], optional):
-        The transformation function to apply to the reconstruction values. Defaults to lambda x: x.
-    *   differentiable (bool, optional): Whether the loss is differentiable. Defaults to True.
+    Attributes:
+        name (str): The name of the loss component.
+        weight (float): The weight of the loss component.
+        base_loss (nn.Module): The base loss function.
+        differentiable (bool, optional): Whether the loss is differentiable. Defaults to True.
 
     Returns:
-        torch.Tensor: The computed loss value.
+        torch.Tensor: The computed loss
     """
 
     name: str
     weight: float
     base_loss: nn.Module
-    rec_key: str
-    transform_func: Callable[[torch.Tensor], torch.Tensor] = lambda x: x
     differentiable: bool = True
 
     def __call__(
         self, pred: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
     ) -> torch.Tensor:
-        """
-        Compute the loss.
-
-        Args:
-            pred (dict[str, torch.Tensor]): The predicted values.
-            target (dict[str, torch.Tensor]): The target values.
-
-        Returns:
-            torch.Tensor: The computed loss value.
-        """
+        prediction = torch.nn.functional.pad(pred["stop"], (0, 1))
         return self.base_loss(
-            self.transform_func(pred[self.rec_key]),
-            self.transform_func(target[self.rec_key]),
+            prediction,
+            (torch.argmax(pred["logits"], dim=1) == target["class"]).long(),
         )
 
 
