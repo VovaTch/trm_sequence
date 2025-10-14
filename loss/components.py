@@ -54,6 +54,8 @@ class BasicClassificationLoss(LossComponent):
     name: str
     weight: float
     base_loss: nn.Module
+    pred_key: str = "logits"
+    ref_key: str = "class"
     differentiable: bool = True
 
     def __call__(
@@ -69,7 +71,47 @@ class BasicClassificationLoss(LossComponent):
         Returns:
             torch.Tensor: The computed loss value.
         """
-        return self.base_loss(pred["logits"], target["class"])
+        return self.base_loss(pred[self.pred_key], target[self.ref_key])
+
+
+@dataclass
+class BasicClassificationLossT(LossComponent):
+    """
+    Basic classification loss, most commonly cross entropy.
+
+    Args:
+        name (str): The name of the loss.
+        weight (float): The weight of the loss.
+        base_loss (nn.Module): The base loss function.
+        differentiable (bool, optional): Whether the loss is differentiable. Defaults to True.
+
+    Returns:
+        torch.Tensor: The computed loss value.
+    """
+
+    name: str
+    weight: float
+    base_loss: nn.Module
+    pred_key: str = "logits"
+    ref_key: str = "class"
+    differentiable: bool = True
+
+    def __call__(
+        self, pred: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
+    ) -> torch.Tensor:
+        """
+        Compute the loss.
+
+        Args:
+            pred (dict[str, torch.Tensor]): The predicted values.
+            target (dict[str, torch.Tensor]): The target values.
+
+        Returns:
+            torch.Tensor: The computed loss value.
+        """
+        return self.base_loss(
+            pred[self.pred_key].permute(0, 2, 1), target[self.ref_key]
+        )
 
 
 @dataclass

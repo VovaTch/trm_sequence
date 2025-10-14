@@ -81,8 +81,8 @@ class DiffusionLLMLightningModule(BaseLightningModule):
         self,
         init_tokens: torch.Tensor | None = None,
         init_step: int = 0,
-        seq_len: int = 512,
-        vocab_size: int = 1024,
+        seq_len: int = 1024,
+        vocab_size: int = 66,
         temperature: float = 0.7,
     ) -> torch.Tensor:
         """
@@ -104,18 +104,31 @@ class DiffusionLLMLightningModule(BaseLightningModule):
 
         num_steps = self._sample_scheduler.num_steps
         current_tokens = (
-            init_tokens
+            torch.cat(
+                (
+                    init_tokens.to(self._device),
+                    torch.zeros(
+                        (1, seq_len - len(init_tokens)),
+                        device=self._device,
+                        dtype=torch.int64,
+                    ),
+                ),
+                dim=1,
+            )
             if init_tokens is not None
-            else torch.zeros((1, seq_len)).to(self._device)
+            else torch.zeros((1, seq_len), device=self._device, dtype=torch.int64)
         )
         current_logits = torch.randn((1, seq_len, vocab_size), device=self._device)
-        current_mask = torch.zeros_like(current_tokens[:, :, 0], dtype=torch.bool)
-        for step in tqdm.tqdm(
-            range(num_steps), desc="Generating a tokenized sound sample..."
-        ):
-            current_mask = self._sample_scheduler.sample(
-                step, current_mask, current_logits
-            ).to(dtype=torch.bool)
+        current_mask = torch.zeros_like(
+            current_tokens, dtype=torch.bool, device=self._device
+        )
+        current_mask[:, :init_step] = True
+        for step in tqdm.tqdm(range(num_steps), desc="Generating diffusion tokens..."):
+            current_mask = (
+                self._sample_scheduler.sample(step, current_mask, current_logits)
+                .to(dtype=torch.bool)
+                .to(self._device)
+            )
             if step > init_step:
                 current_logits = self.model(current_tokens, current_mask)
                 cat_probs = torch.softmax(current_logits, dim=-1)

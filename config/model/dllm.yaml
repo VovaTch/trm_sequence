@@ -2,5 +2,5 @@ _target_: models.models.backbone.dllm_simple.TokenDiffusionTransformer
 hidden_dim: 128
 vocab_size: 66
 num_layers: 6
-num_heads: 4
+num_heads: 8
 dropout: 0.1
