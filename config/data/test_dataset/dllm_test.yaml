@@ -1,0 +1,12 @@
+_target_: loaders.MaskedCharLevelTS
+stage:
+  _target_: loaders.base.Stage
+  _args_: [test]
+path: data/tiny_shakespeare/raw.txt
+tokenizer:
+  _target_: models.tokenizers.CharLevelTokenizer
+  mapping_path: ${data.test_dataset.tokenized_data_path}
+tokenized_data_path: data/tiny_shakespeare
+val_split: 0.09
+test_split: 0.01
+sequence_length: 1024

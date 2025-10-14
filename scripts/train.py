@@ -2,11 +2,11 @@ import hydra
 from omegaconf import DictConfig
 import torch
 
-from models.base import load_inner_model_state_dict
+from models.modules.base import load_inner_model_state_dict
 from utils.learning import get_trainer
 
 
-@hydra.main(version_base=None, config_path="../config", config_name="config")
+@hydra.main(version_base=None, config_path="../config", config_name="dllm")
 def main(cfg: DictConfig) -> None:
 
     # Set precision

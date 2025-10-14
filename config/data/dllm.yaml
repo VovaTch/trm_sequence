@@ -1,0 +1,7 @@
+defaults:
+  - train_dataset: dllm_train
+  - val_dataset: dllm_val
+  - test_dataset: dllm_test
+
+_target_: loaders.SeparatedSetModule
+learning_params: ${learning}

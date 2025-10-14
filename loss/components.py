@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable
 
 import torch
 import torch.nn as nn
@@ -136,4 +135,77 @@ class PercentCorrect(LossComponent):
         """
         pred_logits_argmax = torch.argmax(pred["logits"], dim=1)
         correct = torch.sum(pred_logits_argmax == target["class"])
+        return correct / torch.numel(pred_logits_argmax)
+
+
+@dataclass
+class MaskedClassificationLoss(LossComponent):
+    """
+    Classification loss with masking, mostly used in Diffusion LLM training
+    """
+
+    name: str
+    weight: float
+    base_loss: nn.Module
+    pred_key: str
+    ref_key: str
+    mask_key: str
+    differentiable: bool = True
+
+    def __call__(
+        self, pred: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
+    ) -> torch.Tensor:
+        """
+        Call method for outputting the loss
+
+        Args:
+            pred (dict[str, torch.Tensor]): Network estimation
+            target (dict[str, torch.Tensor]): Ground truth reference
+
+        Returns:
+            torch.Tensor: loss
+        """
+        mask = ~target[self.mask_key]
+        if pred[self.pred_key].dim() == 4:
+            logits = pred[self.pred_key][mask].permute(0, 2, 1)
+        elif pred[self.pred_key].dim() == 3:
+            logits = pred[self.pred_key][mask]
+        labels = target[self.ref_key][mask]
+        return self.base_loss(logits, labels)  # type: ignore
+
+
+@dataclass
+class MaskedPercentCorrect(LossComponent):
+    """
+    Classification loss with masking, mostly used in Diffusion LLM training
+    """
+
+    name: str
+    weight: float
+    pred_key: str
+    ref_key: str
+    mask_key: str
+    base_loss: nn.Module | None = None
+    differentiable: bool = False
+
+    def __call__(
+        self, pred: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
+    ) -> torch.Tensor:
+        """
+        Call method for outputting the loss
+
+        Args:
+            pred (dict[str, torch.Tensor]): Network estimation
+            target (dict[str, torch.Tensor]): Ground truth reference
+
+        Returns:
+            torch.Tensor: loss
+        """
+        mask = ~target[self.mask_key]
+        if pred[self.pred_key].dim() == 4:
+            logits = pred[self.pred_key][mask].permute(0, 2, 1)
+        elif pred[self.pred_key].dim() == 3:
+            logits = pred[self.pred_key][mask]
+        pred_logits_argmax = torch.argmax(logits, dim=1)  # type: ignore
+        correct = torch.sum(pred_logits_argmax == target[self.ref_key][mask])
         return correct / torch.numel(pred_logits_argmax)

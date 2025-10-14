@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-from typing import Any
 import warnings
 
 import torch
@@ -12,35 +10,8 @@ from lightning.pytorch.callbacks import (
 )
 from lightning.pytorch.loggers import Logger, TensorBoardLogger
 
-from utils.ema import EMA
-
-
-@dataclass
-class LearningParameters:
-    """
-    Learning parameters dataclass to contain every parameter required for training,
-    excluding the optimizer and the scheduler, which are handled separately.
-    """
-
-    model_name: str
-    learning_rate: float = 0.001
-    weight_decay: float = 0.001
-    batch_size: int = 32
-    grad_accumulation: int = 1
-    epochs: int = 10
-    beta_ema: float = 0.999
-    gradient_clip: float = 0.5
-    save_path: str = "saved"
-    amp: bool = False
-    val_split: float = 0.05
-    test_split: float = 0.01
-    devices: Any = "auto"
-    num_workers: int = 0
-    loss_monitor: str = "validation total loss"
-    trigger_loss: float = 0.0
-    interval: str = "step"
-    frequency: int = 1
-    pin_memory: bool = True
+from .ema import EMA
+from .containers import LearningParameters
 
 
 def get_trainer(learning_parameters: LearningParameters) -> L.Trainer:
@@ -104,12 +75,16 @@ def get_trainer(learning_parameters: LearningParameters) -> L.Trainer:
             learning_rate_monitor,
             ema,
         ],
+        strategy="ddp_find_unused_parameters_true",
         devices=devices,
         max_epochs=learning_parameters.epochs,
         log_every_n_steps=1,
         precision=precision,
         accelerator=accelerator,
         accumulate_grad_batches=learning_parameters.grad_accumulation,
+        limit_train_batches=learning_parameters.limit_train_batches,
+        limit_val_batches=learning_parameters.limit_eval_batches,
+        limit_test_batches=learning_parameters.limit_test_batches,
     )
 
     return trainer
