@@ -9,7 +9,7 @@ defaults:
   - module: dllm
 
 project_name: LightningTemplate
-model_name: mnist_fcn
+model_name: dllm
 resume: null
 
 # Optimizations

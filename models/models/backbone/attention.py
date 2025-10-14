@@ -6,6 +6,7 @@ from utils.logger import LOGGER
 from .rope import RotaryEmbedding
 
 
+@torch.jit.script
 class AttnBackbone(nn.Module):
     def __init__(
         self,

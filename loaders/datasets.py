@@ -1,4 +1,5 @@
 from __future__ import annotations
+from math import floor
 import os
 from typing import Any, TypedDict
 import requests
@@ -145,10 +146,12 @@ class CharLevelTS(Dataset):
         self._logger.info(f"Saved dataset into {tokenized_data_path}")
 
     def __len__(self) -> int:
-        return len(self._data) - self.sequence_length
+        return floor(len(self._data) / self.sequence_length)
 
     def __getitem__(self, index: int) -> TextSequenceOutput:
-        raw = self._data[index : index + self.sequence_length]
+        raw = self._data[
+            index * self.sequence_length : (index + 1) * self.sequence_length
+        ]
         raw_writable = raw.copy()
         assert isinstance(raw_writable, np.ndarray)
         raw_writable.flags.writeable = True
