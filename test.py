@@ -1,5 +1,9 @@
+import time
 import torch
 import hydra
+import sys
+import math
+import shutil
 
 from models.modules.base import load_inner_model_state_dict
 from models.modules.diffusion_llm import DiffusionLLMLightningModule
@@ -22,10 +26,35 @@ TEXT = "What is the meaning of life?"
 tokenized_text = tokenizer.encode(TEXT)
 tokenized_text = torch.tensor(tokenized_text).unsqueeze(0)
 
-with torch.no_grad():
-    generated_tokens = model.generate(
-        init_tokens=tokenized_text, seq_len=1024, vocab_size=66
-    )
-generated_text = tokenizer.decode(generated_tokens[0, ...].cpu().numpy())  # type: ignore
 
-print(generated_text)
+def rows_used(text, width):
+    # how many terminal rows this block will occupy (approx; good enough for ASCII)
+    total = 0
+    for line in text.splitlines() or [""]:
+        total += max(1, math.ceil(max(1, len(line.expandtabs())) / max(1, width)))
+    return total
+
+
+prev_rows = 0
+with torch.no_grad():
+    for generated_tokens in model.stream(
+        init_tokens=tokenized_text, seq_len=128, vocab_size=66, temperature=0.3
+    ):
+        generated_text = tokenizer.decode(generated_tokens.squeeze().cpu().numpy())
+
+        # Move to the beginning of the previous block
+        if prev_rows:
+            # \x1b[{n}F = move cursor up n lines to column 1 (beginning-of-line)
+            sys.stdout.write(f"\x1b[{prev_rows}F")
+
+        # Clear from cursor to end of screen, then print the new block
+        sys.stdout.write("\x1b[J")
+        sys.stdout.write(
+            generated_text + ("\n" if not generated_text.endswith("\n") else "")
+        )
+        sys.stdout.flush()
+
+        width = shutil.get_terminal_size().columns or 80
+        prev_rows = rows_used(generated_text, width)
+
+print()  # leave the cursor on a clean line at the end

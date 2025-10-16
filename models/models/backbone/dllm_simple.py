@@ -1,7 +1,12 @@
 import torch
 import torch.nn as nn
+from functools import partial
 
 from models.models.backbone.rope import RotaryEmbedding
+from models.models.backbone.sin_pos_enc import (
+    SinusoidalPositionEmbeddings,
+    apply_pos_encoding,
+)
 
 
 class TokenDiffusionTransformer(nn.Module):
@@ -25,7 +30,11 @@ class TokenDiffusionTransformer(nn.Module):
         self._dropout = dropout
 
         self._token_embedding = nn.Embedding(vocab_size + 1, hidden_dim)
-        self._pos_embedding = RotaryEmbedding(hidden_dim)
+        # self._pos_embedding = RotaryEmbedding(hidden_dim)
+        pos_embedding_obj = SinusoidalPositionEmbeddings(hidden_dim)
+        self._pos_embedding = partial(
+            apply_pos_encoding, pos_encoding=pos_embedding_obj
+        )
 
         transformer_encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim,
@@ -40,7 +49,7 @@ class TokenDiffusionTransformer(nn.Module):
         )
 
         self._mlp_head = nn.Linear(hidden_dim, vocab_size, bias=False)
-        self._mlp_head.weight = nn.Parameter(self._token_embedding.weight[:-1, ...])
+        # self._mlp_head.weight = nn.Parameter(self._token_embedding.weight[:-1, ...])
 
     def forward(
         self, input: torch.Tensor, mask: torch.Tensor | None = None
@@ -55,7 +64,7 @@ class TokenDiffusionTransformer(nn.Module):
         masked_inputs[~mask] = self._vocab_size
 
         token_embedding = self._token_embedding.forward(masked_inputs)
-        token_embedding = self._pos_embedding.forward(token_embedding)
+        token_embedding = self._pos_embedding(token_embedding)
 
         t_outputs = self._transformer_encoder(token_embedding)
         return self._mlp_head(t_outputs)

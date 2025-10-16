@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Generator
 
 import torch
 import torch.nn as nn
@@ -138,3 +138,65 @@ class DiffusionLLMLightningModule(BaseLightningModule):
                 sampled_latent = cat_distribution.sample()
                 current_tokens[~current_mask] = sampled_latent[~current_mask]
         return current_tokens
+
+    def stream(
+        self,
+        init_tokens: torch.Tensor | None = None,
+        init_step: int = 0,
+        seq_len: int = 1024,
+        vocab_size: int = 66,
+        temperature: float = 0.7,
+    ) -> Generator[torch.Tensor, None, None]:
+        """
+        Streams a token tensor basted on the provided initial latent tensor and initial step.
+
+        Args:
+            init_tokens (torch.Tensor, optional): The initial tokens to start the generation process.
+                Defaults to None.
+            init_step (int, optional): The initial step to start the generation process. Defaults to 0.
+            seq_len (int, optional): The length of the sequence to generate. Defaults to 1024.
+            vocab_size (int, optional): The size of the vocabulary. Defaults to 66.
+            temperature (float, optional): The temperature to use for sampling. Defaults to 0.7.
+
+        Returns:
+            Generator[torch.Tensor, None, None]: A generator that yields the generated tensor at each step.
+        """
+        if temperature < 0:
+            raise ValueError("Temperature must be non-negative.")
+
+        num_steps = self._sample_scheduler.num_steps
+        current_tokens = (
+            torch.cat(
+                (
+                    init_tokens.to(self._device),
+                    torch.zeros(
+                        (1, seq_len - len(init_tokens)),
+                        device=self._device,
+                        dtype=torch.int64,
+                    ),
+                ),
+                dim=1,
+            )
+            if init_tokens is not None
+            else torch.zeros((1, seq_len), device=self._device, dtype=torch.int64)
+        )
+        current_logits = torch.randn((1, seq_len, vocab_size), device=self._device)
+        current_mask = torch.zeros_like(
+            current_tokens, dtype=torch.bool, device=self._device
+        )
+        current_mask[:, :init_step] = True
+        for step in range(num_steps):
+            current_mask = (
+                self._sample_scheduler.sample(step, current_mask, current_logits)
+                .to(dtype=torch.bool)
+                .to(self._device)
+            )
+            if step > init_step:
+                current_logits = self.model(current_tokens, current_mask)
+                cat_probs = torch.softmax(current_logits, dim=-1)
+                cat_distribution = torch.distributions.Categorical(
+                    cat_probs ** (1 / (temperature + 1e-9))
+                )
+                sampled_latent = cat_distribution.sample()
+                current_tokens[~current_mask] = sampled_latent[~current_mask]
+            yield current_tokens
