@@ -133,14 +133,24 @@ class HaltingCrossEntropy(LossComponent):
     weight: float
     base_loss: nn.Module
     differentiable: bool = True
+    pred_stop_key: str = "stop"
+    pred_logits_key: str = "logits"
+    target_key: str = "class"
 
     def __call__(
         self, pred: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
     ) -> torch.Tensor:
-        prediction = torch.nn.functional.pad(pred["stop"], (0, 1))
+        prediction = torch.nn.functional.pad(pred[self.pred_stop_key], (0, 1))
+        pred_logits = (
+            pred[self.pred_logits_key]
+            if pred[self.pred_logits_key].dim() == 2
+            else pred[self.pred_logits_key].permute(0, 2, 1)
+        )
         return self.base_loss(
             prediction,
-            (torch.argmax(pred["logits"], dim=1) == target["class"]).long(),
+            torch.all(
+                torch.argmax(pred_logits, dim=1) == target[self.target_key], dim=1
+            ).long(),
         )
 
 

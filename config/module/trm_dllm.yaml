@@ -6,7 +6,7 @@ sample_scheduler:
   _target_: utils.sample_schedulers.LinearSampleScheduler
   num_steps: 100
 model: ${model}
-latent_dim: 128
+latent_len: 128
 supervision_steps: 4
 learning_params: ${learning}
 loss_aggregator: ${loss.aggregator}

@@ -4,12 +4,12 @@ defaults:
   - learning: standard
   - optimizer: adamw_standard
   - scheduler: one_cycle_lr
-  - loss: dllm
+  - loss: trm_dllm
   - model: trm_dllm
   - module: trm_dllm
 
 project_name: LightningTemplate
-model_name: dllm
+model_name: trm_dllm
 resume: null
 
 # Optimizations

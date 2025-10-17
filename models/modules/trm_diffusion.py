@@ -116,6 +116,14 @@ class LanguageTRMModule(BaseLightningModule):
             if torch.all(sup_step_output["stop"] > 0):
                 break
 
+        if phase != "training":
+            return
+        scheduler = self.lr_schedulers()
+        if isinstance(scheduler, list):
+            scheduler = scheduler[0]
+        if scheduler is not None:
+            scheduler.step()  # type: ignore
+
     def log_loss(self, loss: LossOutput, phase: str) -> torch.Tensor:
         """
         Handles the loss logging (to Tensorboard).

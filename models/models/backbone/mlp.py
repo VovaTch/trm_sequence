@@ -57,3 +57,7 @@ class MLPCore(Core):
         all_out = self._layers(concat_all).to(x.device)
         y_out, z_out = torch.split(all_out, [self._output_dim, self._latent_dim], dim=1)
         return y_out, z_out
+
+    @property
+    def hidden_dim(self) -> int:
+        return self._hidden_dim

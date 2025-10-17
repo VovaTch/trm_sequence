@@ -11,7 +11,7 @@ y_loop: 3
 input_embedding:
   _target_: models.models.backbone.InputEmbedding
   embedding_dim: ${model.core.hidden_dim}
-  vocab_size: 66
+  vocab_size: 65
 output_head:
   _target_: models.models.backbone.LinearOutputHead
   hidden_dim: ${model.core.hidden_dim}
