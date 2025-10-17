@@ -1,4 +1,3 @@
-import time
 import torch
 import hydra
 import sys
@@ -38,9 +37,9 @@ def rows_used(text, width):
 prev_rows = 0
 with torch.no_grad():
     for generated_tokens in model.stream(
-        init_tokens=tokenized_text, seq_len=128, vocab_size=66, temperature=0.3
+        init_tokens=tokenized_text, seq_len=1024, vocab_size=66, temperature=0.7
     ):
-        generated_text = tokenizer.decode(generated_tokens.squeeze().cpu().numpy())
+        generated_text = tokenizer.decode(generated_tokens.squeeze().cpu().numpy())  # type: ignore
 
         # Move to the beginning of the previous block
         if prev_rows:
