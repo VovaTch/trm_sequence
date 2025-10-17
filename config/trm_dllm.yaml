@@ -5,8 +5,8 @@ defaults:
   - optimizer: adamw_standard
   - scheduler: one_cycle_lr
   - loss: dllm
-  - model: dllm
-  - module: dllm
+  - model: trm_dllm
+  - module: trm_dllm
 
 project_name: LightningTemplate
 model_name: dllm
@@ -14,4 +14,4 @@ resume: null
 
 # Optimizations
 use_torch_compile: False
-seq_length: 1024
+seq_length: 256

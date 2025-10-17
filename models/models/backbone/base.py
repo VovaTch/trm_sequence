@@ -9,3 +9,7 @@ class Core(ABC, nn.Module):
     def forward(
         self, x: torch.Tensor, y: torch.Tensor, z: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]: ...
+
+    @property
+    @abstractmethod
+    def hidden_dim(self) -> int: ...

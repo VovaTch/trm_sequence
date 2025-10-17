@@ -1,3 +1,5 @@
+from enum import Enum
+
 import torch
 import torch.nn as nn
 from functools import partial
@@ -7,6 +9,11 @@ from models.models.backbone.sin_pos_enc import (
     SinusoidalPositionEmbeddings,
     apply_pos_encoding,
 )
+
+
+class EmbeddingType(Enum):
+    ROPE = "rope"
+    SIN = "sin"
 
 
 class TokenDiffusionTransformer(nn.Module):
@@ -21,6 +28,8 @@ class TokenDiffusionTransformer(nn.Module):
         num_layers: int,
         num_heads: int,
         dropout: float = 0.1,
+        share_last_weights: bool = False,
+        embedding_type: EmbeddingType = EmbeddingType.SIN,
     ) -> None:
         super().__init__()
         self._vocab_size = vocab_size
@@ -30,11 +39,15 @@ class TokenDiffusionTransformer(nn.Module):
         self._dropout = dropout
 
         self._token_embedding = nn.Embedding(vocab_size + 1, hidden_dim)
-        # self._pos_embedding = RotaryEmbedding(hidden_dim)
-        pos_embedding_obj = SinusoidalPositionEmbeddings(hidden_dim)
-        self._pos_embedding = partial(
-            apply_pos_encoding, pos_encoding=pos_embedding_obj
-        )
+        match embedding_type:
+            case EmbeddingType.ROPE:
+                self._pos_embedding = RotaryEmbedding(hidden_dim)
+            case EmbeddingType.SIN:
+                pos_embedding_obj = SinusoidalPositionEmbeddings(hidden_dim)
+                self._pos_embedding = partial(
+                    apply_pos_encoding, pos_encoding=pos_embedding_obj
+                )
+        self._embedding_type = embedding_type
 
         transformer_encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim,
@@ -49,7 +62,8 @@ class TokenDiffusionTransformer(nn.Module):
         )
 
         self._mlp_head = nn.Linear(hidden_dim, vocab_size, bias=False)
-        # self._mlp_head.weight = nn.Parameter(self._token_embedding.weight[:-1, ...])
+        if share_last_weights:
+            self._mlp_head.weight = nn.Parameter(self._token_embedding.weight[:-1, ...])
 
     def forward(
         self, input: torch.Tensor, mask: torch.Tensor | None = None

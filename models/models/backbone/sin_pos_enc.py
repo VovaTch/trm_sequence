@@ -41,7 +41,7 @@ class SinusoidalPositionEmbeddings(nn.Module):
 
 
 def apply_pos_encoding(
-    x: torch.Tensor, pos_encoding: SinusoidalPositionEmbeddings
+    x: torch.Tensor, pos_encoding: SinusoidalPositionEmbeddings, offset: int = 0
 ) -> torch.Tensor:
     """
     Applies positional encoding to the input tensor.
@@ -49,11 +49,12 @@ def apply_pos_encoding(
     Args:
         x (torch.Tensor): The input tensor.
         pos_encoding (SinusoidalPositionEmbeddings): The positional encoding function.
+        offset (int, optional): The offset for the positional encoding. Defaults to 0.
 
     Returns:
         torch.Tensor: The input tensor with positional encoding added.
     """
-    pos_range = torch.arange(0, x.shape[1], 1).to(x.device)
+    pos_range = torch.arange(0, x.shape[1], 1).to(x.device) + offset
     pos_enc_ind = pos_encoding(pos_range)
     pos_enc = pos_enc_ind.unsqueeze(0).repeat((x.shape[0], 1, 1))
     return x + pos_enc

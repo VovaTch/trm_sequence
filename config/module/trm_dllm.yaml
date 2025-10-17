@@ -1,11 +1,13 @@
-_target_: models.modules.diffusion_llm.DiffusionLLMLightningModule
+_target_: models.modules.trm_diffusion.LanguageTRMModule
 sample_scheduler:
   # _target_: utils.sample_schedulers.LinearEntropyBatchSampleScheduler
   # steps_per_batch: 20
   # batch_length: 16
   _target_: utils.sample_schedulers.LinearSampleScheduler
-  num_steps: 0
+  num_steps: 100
 model: ${model}
+latent_dim: 128
+supervision_steps: 4
 learning_params: ${learning}
 loss_aggregator: ${loss.aggregator}
 optimizer_cfg: ${optimizer}

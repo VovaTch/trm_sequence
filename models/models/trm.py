@@ -37,6 +37,13 @@ class TinyRecursiveModel(nn.Module):
         self._output_head = output_head
         self._q_head = q_head
 
+    @property
+    def core(self) -> Core:
+        """
+        Returns the core underlying model of the TRM.
+        """
+        return self._core
+
     def latent_recursion(
         self, input: torch.Tensor, output: torch.Tensor, latent: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
