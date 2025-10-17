@@ -103,6 +103,8 @@ class LanguageTRMModule(BaseLightningModule):
             if self.loss_aggregator is None:
                 continue
             sup_step_output["logits"] = sup_step_output["output"]
+            y = sup_step_output["inter output"]
+            z = sup_step_output["latent"]
 
             loss = self.loss_aggregator(sup_step_output, batch)
             self.log_loss(loss, phase)
@@ -157,7 +159,7 @@ class LanguageTRMModule(BaseLightningModule):
         init_tokens: torch.Tensor | None = None,
         init_step: int = 0,
         seq_len: int = 1024,
-        vocab_size: int = 66,
+        vocab_size: int = 65,
         temperature: float = 0.7,
     ) -> torch.Tensor:
         """
@@ -167,21 +169,79 @@ class LanguageTRMModule(BaseLightningModule):
             init_tokens (torch.Tensor, optional): The initial tokens to start the generation process.
                 Defaults to None.
             init_step (int, optional): The initial step to start the generation process. Defaults to 0.
-            seq_len (int, optional): The length of the sequence to generate. Defaults to 512.
-            vocab_size (int, optional): The size of the vocabulary. Defaults to 1024.
+            seq_len (int, optional): The length of the sequence to generate. Defaults to 1024.
+            vocab_size (int, optional): The size of the vocabulary. Defaults to 65.
             temperature (float, optional): The temperature to use for sampling. Defaults to 0.7.
 
         Returns:
             torch.Tensor: The generated tensor.
         """
-        raise NotImplementedError("TODO")
+        if temperature < 0:
+            raise ValueError("Temperature must be non-negative.")
+
+        num_steps = self._sample_scheduler.num_steps
+        current_tokens = (
+            torch.cat(
+                (
+                    init_tokens.to(self._device),
+                    torch.zeros(
+                        (1, seq_len - len(init_tokens)),
+                        device=self._device,
+                        dtype=torch.int64,
+                    ),
+                ),
+                dim=1,
+            )
+            if init_tokens is not None
+            else torch.zeros((1, seq_len), device=self._device, dtype=torch.int64)
+        )
+        current_logits = torch.randn((1, seq_len, vocab_size), device=self._device)
+        current_mask = torch.zeros_like(
+            current_tokens, dtype=torch.bool, device=self._device
+        )
+        current_mask[:, :init_step] = True
+
+        y_init = torch.zeros((1, seq_len, self._core_hidden_dim)).to(self._device)
+        z_init = torch.zeros((1, self._latent_len, self._core_hidden_dim)).to(
+            self._device
+        )
+
+        y = y_init
+        z = z_init
+
+        for step in range(num_steps):
+            current_mask = (
+                self._sample_scheduler.sample(step, current_mask, current_logits)
+                .to(dtype=torch.bool)
+                .to(self._device)
+            )
+            current_mask[:, :init_step] = True
+            if step > init_step:
+                step_output = self.forward(
+                    {"input": current_tokens, "inter output": y, "latent": z}
+                )
+                current_logits = step_output["output"]
+                cat_probs = torch.softmax(current_logits, dim=-1)
+                cat_distribution = torch.distributions.Categorical(
+                    cat_probs ** (1 / (temperature + 1e-9))
+                )
+                sampled_latent = cat_distribution.sample()
+                current_tokens[~current_mask] = sampled_latent[~current_mask]
+
+                y = step_output["inter output"]
+                z = step_output["latent"]
+
+                if torch.all(step_output["stop"] > 0):
+                    break
+
+        return current_tokens
 
     def stream(
         self,
         init_tokens: torch.Tensor | None = None,
         init_step: int = 0,
         seq_len: int = 1024,
-        vocab_size: int = 66,
+        vocab_size: int = 65,
         temperature: float = 0.7,
     ) -> Generator[torch.Tensor, None, None]:
         """
@@ -192,10 +252,68 @@ class LanguageTRMModule(BaseLightningModule):
                 Defaults to None.
             init_step (int, optional): The initial step to start the generation process. Defaults to 0.
             seq_len (int, optional): The length of the sequence to generate. Defaults to 1024.
-            vocab_size (int, optional): The size of the vocabulary. Defaults to 66.
+            vocab_size (int, optional): The size of the vocabulary. Defaults to 65.
             temperature (float, optional): The temperature to use for sampling. Defaults to 0.7.
 
         Returns:
             Generator[torch.Tensor, None, None]: A generator that yields the generated tensor at each step.
         """
-        raise NotImplementedError("TODO")
+        if temperature < 0:
+            raise ValueError("Temperature must be non-negative.")
+
+        num_steps = self._sample_scheduler.num_steps
+        current_tokens = (
+            torch.cat(
+                (
+                    init_tokens.to(self._device),
+                    torch.zeros(
+                        (1, seq_len - len(init_tokens)),
+                        device=self._device,
+                        dtype=torch.int64,
+                    ),
+                ),
+                dim=1,
+            )
+            if init_tokens is not None
+            else torch.zeros((1, seq_len), device=self._device, dtype=torch.int64)
+        )
+        current_logits = torch.randn((1, seq_len, vocab_size), device=self._device)
+        current_mask = torch.zeros_like(
+            current_tokens, dtype=torch.bool, device=self._device
+        )
+        current_mask[:, :init_step] = True
+
+        y_init = torch.zeros((1, seq_len, self._core_hidden_dim)).to(self._device)
+        z_init = torch.zeros((1, self._latent_len, self._core_hidden_dim)).to(
+            self._device
+        )
+
+        y = y_init
+        z = z_init
+
+        for step in range(num_steps):
+            current_mask = (
+                self._sample_scheduler.sample(step, current_mask, current_logits)
+                .to(dtype=torch.bool)
+                .to(self._device)
+            )
+            current_mask[:, :init_step] = True
+            if step > init_step:
+                step_output = self.forward(
+                    {"input": current_tokens, "inter output": y, "latent": z}
+                )
+                current_logits = step_output["output"]
+                cat_probs = torch.softmax(current_logits, dim=-1)
+                cat_distribution = torch.distributions.Categorical(
+                    cat_probs ** (1 / (temperature + 1e-9))
+                )
+                sampled_latent = cat_distribution.sample()
+                current_tokens[~current_mask] = sampled_latent[~current_mask]
+
+                y = step_output["inter output"]
+                z = step_output["latent"]
+
+                yield current_tokens
+
+                if torch.all(step_output["stop"] > 0):
+                    break

@@ -77,6 +77,7 @@ class DiffusionLLMLightningModule(BaseLightningModule):
         )
         return loss.total
 
+    @torch.no_grad()
     def generate(
         self,
         init_tokens: torch.Tensor | None = None,
@@ -139,6 +140,7 @@ class DiffusionLLMLightningModule(BaseLightningModule):
                 current_tokens[~current_mask] = sampled_latent[~current_mask]
         return current_tokens
 
+    @torch.no_grad()
     def stream(
         self,
         init_tokens: torch.Tensor | None = None,
