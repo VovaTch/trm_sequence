@@ -5,7 +5,7 @@ import math
 import shutil
 
 from models.modules.base import load_inner_model_state_dict
-from models.modules.diffusion_llm import DiffusionLLMLightningModule
+from models.modules.trm_diffusion import LanguageTRMModule
 from models.tokenizers.char import CharLevelTokenizer
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -13,10 +13,10 @@ print(f"Current device is {device}")
 
 # Load network
 with hydra.initialize(version_base=None, config_path="config"):
-    cfg = hydra.compose(config_name="dllm")
+    cfg = hydra.compose(config_name="trm_dllm")
 cfg.learning.batch_size = 128
-weights_path = "weights/dllm.ckpt"
-model: DiffusionLLMLightningModule = hydra.utils.instantiate(cfg.module)
+weights_path = "weights/trm_dllm.ckpt"
+model: LanguageTRMModule = hydra.utils.instantiate(cfg.module)
 model = load_inner_model_state_dict(model, weights_path).to(device).eval()  # type: ignore
 
 tokenizer = CharLevelTokenizer()
@@ -26,7 +26,7 @@ tokenized_text = tokenizer.encode(TEXT)
 tokenized_text = torch.tensor(tokenized_text).unsqueeze(0)
 
 
-def rows_used(text, width):
+def rows_used(text: str, width: int) -> int:
     # how many terminal rows this block will occupy (approx; good enough for ASCII)
     total = 0
     for line in text.splitlines() or [""]:
@@ -37,7 +37,7 @@ def rows_used(text, width):
 prev_rows = 0
 with torch.no_grad():
     for generated_tokens in model.stream(
-        init_tokens=tokenized_text, seq_len=1024, vocab_size=66, temperature=0.7
+        init_tokens=tokenized_text, seq_len=256, vocab_size=66, temperature=0.7
     ):
         generated_text = tokenizer.decode(generated_tokens.squeeze().cpu().numpy())  # type: ignore
 

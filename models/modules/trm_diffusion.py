@@ -97,8 +97,11 @@ class LanguageTRMModule(BaseLightningModule):
         optimizer.zero_grad()
 
         for _ in range(self._supervision_steps):
+            masked_token_input = batch["tokens"].clone()
+            masked_token_input[~batch["mask"]] = self.model.core.vocab_size
+
             sup_step_output = self.forward(
-                {"input": batch["tokens"], "inter output": y, "latent": z}
+                {"input": masked_token_input, "inter output": y, "latent": z}
             )
             if self.loss_aggregator is None:
                 continue
@@ -267,7 +270,7 @@ class LanguageTRMModule(BaseLightningModule):
                 (
                     init_tokens.to(self._device),
                     torch.zeros(
-                        (1, seq_len - len(init_tokens)),
+                        (1, seq_len - len(init_tokens[0])),
                         device=self._device,
                         dtype=torch.int64,
                     ),
@@ -313,7 +316,7 @@ class LanguageTRMModule(BaseLightningModule):
                 y = step_output["inter output"]
                 z = step_output["latent"]
 
-                yield current_tokens
+            yield current_tokens
 
-                if torch.all(step_output["stop"] > 0):
-                    break
+            # if torch.all(step_output["stop"] > 0):
+            #     break

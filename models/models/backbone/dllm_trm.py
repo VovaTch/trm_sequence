@@ -28,6 +28,7 @@ class DiffusionTransformerTRM(Core):
         num_heads: int,
         seq_delimiter: int = 4096,
         dropout: float = 0.1,
+        vocab_size: int = 65,
         embedding_type: EmbeddingType = EmbeddingType.SIN,
     ) -> None:
         """
@@ -52,6 +53,7 @@ class DiffusionTransformerTRM(Core):
         self._dropout = dropout
         self._seq_delimiter = seq_delimiter
         self._embedding_type = embedding_type
+        self._vocab_size = vocab_size
 
         transformer_encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim,
@@ -93,6 +95,10 @@ class DiffusionTransformerTRM(Core):
     @property
     def hidden_dim(self) -> int:
         return self._hidden_dim
+
+    @property
+    def vocab_size(self) -> int:
+        return self._vocab_size
 
 
 class InputEmbedding(nn.Module):

@@ -61,3 +61,7 @@ class MLPCore(Core):
     @property
     def hidden_dim(self) -> int:
         return self._hidden_dim
+
+    @property
+    def vocab_size(self) -> int:
+        return 0

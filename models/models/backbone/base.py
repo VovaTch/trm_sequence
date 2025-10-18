@@ -13,3 +13,7 @@ class Core(ABC, nn.Module):
     @property
     @abstractmethod
     def hidden_dim(self) -> int: ...
+
+    @property
+    @abstractmethod
+    def vocab_size(self) -> int: ...
