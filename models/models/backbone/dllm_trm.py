@@ -77,18 +77,29 @@ class DiffusionTransformerTRM(Core):
                 )
 
     def forward(
-        self, x: torch.Tensor, y: torch.Tensor, z: torch.Tensor
+        self, x: torch.Tensor | None, y: torch.Tensor, z: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
 
-        x = self._pos_embedding(x)
         y = self._pos_embedding(y, offset=self._seq_delimiter)
         z = self._pos_embedding(z, offset=self._seq_delimiter * 2)
 
-        transformer_input = torch.cat((x, y, z), dim=1)
-        transformer_output = self._transformer_encoder(transformer_input)
-        _, y_out, z_out = torch.split(
-            transformer_output, [x.shape[1], y.shape[1], z.shape[1]], dim=1
-        )
+        if x is not None:
+
+            x_after_pos = self._pos_embedding(x)
+
+            transformer_input = torch.cat((x_after_pos, y, z), dim=1)
+            transformer_output = self._transformer_encoder(transformer_input)
+            _, y_out, z_out = torch.split(
+                transformer_output, [x.shape[1], y.shape[1], z.shape[1]], dim=1
+            )
+
+        else:
+
+            transformer_input = torch.cat((y, z), dim=1)
+            transformer_output = self._transformer_encoder(transformer_input)
+            y_out, z_out = torch.split(
+                transformer_output, [y.shape[1], z.shape[1]], dim=1
+            )
 
         return y_out, z_out
 

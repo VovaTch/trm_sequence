@@ -21,13 +21,13 @@ model = load_inner_model_state_dict(model, weights_path).to(device).eval()  # ty
 
 tokenizer = CharLevelTokenizer()
 
-TEXT = "What is the meaning of life?"
+# TEXT = "What is the meaning of life?"
+TEXT = "I"
 tokenized_text = tokenizer.encode(TEXT)
 tokenized_text = torch.tensor(tokenized_text).unsqueeze(0)
 
 
 def rows_used(text: str, width: int) -> int:
-    # how many terminal rows this block will occupy (approx; good enough for ASCII)
     total = 0
     for line in text.splitlines() or [""]:
         total += max(1, math.ceil(max(1, len(line.expandtabs())) / max(1, width)))
@@ -37,16 +37,17 @@ def rows_used(text: str, width: int) -> int:
 prev_rows = 0
 with torch.no_grad():
     for generated_tokens in model.stream(
-        init_tokens=tokenized_text, seq_len=256, vocab_size=66, temperature=0.7
+        init_tokens=tokenized_text,
+        seq_len=256,
+        vocab_size=65,
+        temperature=0.8,
+        init_step=0,
     ):
         generated_text = tokenizer.decode(generated_tokens.squeeze().cpu().numpy())  # type: ignore
 
-        # Move to the beginning of the previous block
         if prev_rows:
-            # \x1b[{n}F = move cursor up n lines to column 1 (beginning-of-line)
             sys.stdout.write(f"\x1b[{prev_rows}F")
 
-        # Clear from cursor to end of screen, then print the new block
         sys.stdout.write("\x1b[J")
         sys.stdout.write(
             generated_text + ("\n" if not generated_text.endswith("\n") else "")

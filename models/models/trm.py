@@ -60,7 +60,7 @@ class TinyRecursiveModel(nn.Module):
         """
         for _ in range(self._z_loop):
             _, latent = self._core(input, output, latent)
-        output, latent = self._core(input, output, latent)
+        output, _ = self._core(None, output, latent)
         return output, latent
 
     def deep_recursion(

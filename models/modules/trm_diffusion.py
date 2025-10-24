@@ -81,10 +81,10 @@ class LanguageTRMModule(BaseLightningModule):
         Returns:
             torch.Tensor | None: The total loss if available, otherwise None.
         """
-        y_init = torch.zeros(
+        y_init = torch.randn(
             (batch["tokens"].shape[0], batch["tokens"].shape[1], self._core_hidden_dim)
         ).to(batch["tokens"].device)
-        z_init = torch.zeros(
+        z_init = torch.randn(
             (batch["tokens"].shape[0], self._latent_len, self._core_hidden_dim)
         ).to(batch["tokens"].device)
 
@@ -117,6 +117,7 @@ class LanguageTRMModule(BaseLightningModule):
 
             self.manual_backward(loss.total)
             optimizer.step()
+            optimizer.zero_grad()
 
             if torch.all(sup_step_output["stop"] > 0):
                 break
@@ -187,8 +188,10 @@ class LanguageTRMModule(BaseLightningModule):
             torch.cat(
                 (
                     init_tokens.to(self._device),
-                    torch.zeros(
-                        (1, seq_len - len(init_tokens)),
+                    torch.randint(
+                        0,
+                        self.model.core.vocab_size,
+                        (1, seq_len - init_tokens.shape[-1]),
                         device=self._device,
                         dtype=torch.int64,
                     ),
@@ -196,13 +199,23 @@ class LanguageTRMModule(BaseLightningModule):
                 dim=1,
             )
             if init_tokens is not None
-            else torch.zeros((1, seq_len), device=self._device, dtype=torch.int64)
+            else torch.randint(
+                0,
+                self.model.core.vocab_size,
+                (1, seq_len),
+                device=self._device,
+                dtype=torch.int64,
+            )
         )
         current_logits = torch.randn((1, seq_len, vocab_size), device=self._device)
         current_mask = torch.zeros_like(
             current_tokens, dtype=torch.bool, device=self._device
         )
-        current_mask[:, :init_step] = True
+        if init_tokens is None:
+            init_token_len = 0
+        else:
+            init_token_len = init_tokens.shape[-1]
+        current_mask[:, :init_token_len] = True
 
         y_init = torch.zeros((1, seq_len, self._core_hidden_dim)).to(self._device)
         z_init = torch.zeros((1, self._latent_len, self._core_hidden_dim)).to(
@@ -218,7 +231,7 @@ class LanguageTRMModule(BaseLightningModule):
                 .to(dtype=torch.bool)
                 .to(self._device)
             )
-            current_mask[:, :init_step] = True
+            current_mask[:, :init_token_len] = True
             if step > init_step:
                 step_output = self.forward(
                     {"input": current_tokens, "inter output": y, "latent": z}
@@ -269,8 +282,10 @@ class LanguageTRMModule(BaseLightningModule):
             torch.cat(
                 (
                     init_tokens.to(self._device),
-                    torch.zeros(
-                        (1, seq_len - len(init_tokens[0])),
+                    torch.randint(
+                        0,
+                        self.model.core.vocab_size,
+                        (1, seq_len - init_tokens.shape[-1]),
                         device=self._device,
                         dtype=torch.int64,
                     ),
@@ -278,13 +293,25 @@ class LanguageTRMModule(BaseLightningModule):
                 dim=1,
             )
             if init_tokens is not None
-            else torch.zeros((1, seq_len), device=self._device, dtype=torch.int64)
+            else torch.randint(
+                0,
+                self.model.core.vocab_size,
+                (1, seq_len),
+                device=self._device,
+                dtype=torch.int64,
+            )
         )
+
         current_logits = torch.randn((1, seq_len, vocab_size), device=self._device)
         current_mask = torch.zeros_like(
             current_tokens, dtype=torch.bool, device=self._device
         )
-        current_mask[:, :init_step] = True
+
+        if init_tokens is None:
+            init_token_len = 0
+        else:
+            init_token_len = init_tokens.shape[-1]
+        current_mask[:, :init_token_len] = True
 
         y_init = torch.zeros((1, seq_len, self._core_hidden_dim)).to(self._device)
         z_init = torch.zeros((1, self._latent_len, self._core_hidden_dim)).to(
@@ -300,7 +327,7 @@ class LanguageTRMModule(BaseLightningModule):
                 .to(dtype=torch.bool)
                 .to(self._device)
             )
-            current_mask[:, :init_step] = True
+            current_mask[:, :init_token_len] = True
             if step > init_step:
                 step_output = self.forward(
                     {"input": current_tokens, "inter output": y, "latent": z}
