@@ -4,7 +4,7 @@ sample_scheduler:
   # steps_per_batch: 20
   # batch_length: 16
   _target_: utils.sample_schedulers.LinearSampleScheduler
-  num_steps: 50
+  num_steps: 500
 model: ${model}
 latent_len: 128
 supervision_steps: 4

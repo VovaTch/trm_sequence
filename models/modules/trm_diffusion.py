@@ -233,6 +233,7 @@ class LanguageTRMModule(BaseLightningModule):
             )
             current_mask[:, :init_token_len] = True
             if step > init_step:
+                current_tokens[~current_mask] = self.model.core.vocab_size
                 step_output = self.forward(
                     {"input": current_tokens, "inter output": y, "latent": z}
                 )
@@ -329,6 +330,7 @@ class LanguageTRMModule(BaseLightningModule):
             )
             current_mask[:, :init_token_len] = True
             if step > init_step:
+                current_tokens[~current_mask] = self.model.core.vocab_size
                 step_output = self.forward(
                     {"input": current_tokens, "inter output": y, "latent": z}
                 )
