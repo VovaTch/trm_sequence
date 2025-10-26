@@ -22,7 +22,7 @@ model = load_inner_model_state_dict(model, weights_path).to(device).eval()  # ty
 tokenizer = CharLevelTokenizer()
 
 # TEXT = "What is the meaning of life?"
-TEXT = "I"
+TEXT = "The meaning of life is"
 tokenized_text = tokenizer.encode(TEXT)
 tokenized_text = torch.tensor(tokenized_text).unsqueeze(0)
 
@@ -40,7 +40,7 @@ with torch.no_grad():
         init_tokens=tokenized_text,
         seq_len=256,
         vocab_size=65,
-        temperature=0.3,
+        temperature=0.8,
         init_step=0,
     ):
         generated_text = tokenizer.decode(generated_tokens.squeeze().cpu().numpy())  # type: ignore

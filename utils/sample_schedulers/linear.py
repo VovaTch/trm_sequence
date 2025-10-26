@@ -68,20 +68,32 @@ class LinearEntropyBatchSampleScheduler(SampleScheduler):
         attended_logit_idx_start = (step // self._steps_per_batch) * self._batch_length
         attended_logit_idx_end = attended_logit_idx_start + self._batch_length
 
-        attended_logits = logits[attended_logit_idx_start:attended_logit_idx_end]
+        attended_logits = logits[:, attended_logit_idx_start:attended_logit_idx_end, :]
         attended_masks = new_mask[
-            attended_logit_idx_start:attended_logit_idx_end
+            :, attended_logit_idx_start:attended_logit_idx_end
         ].clone()
+        if attended_logits.numel() == 0 or attended_masks.numel() == 0:
+            return new_mask
         attended_entropy = (
             -F.softmax(attended_logits, dim=-1) * F.log_softmax(attended_logits, dim=-1)
         ).sum(dim=-1)
-        _, sorted_indices = attended_entropy.sort(descending=True)
+        _, sorted_indices = attended_entropy.sort(dim=1, descending=True)
         tokens_to_uncover = math.ceil(
             (step % self._steps_per_batch + 1)
             * (self._batch_length / self._steps_per_batch)
         )
-        attended_masks[sorted_indices[:tokens_to_uncover]] = True
-        new_mask[attended_logit_idx_start:attended_logit_idx_end] = attended_masks
+        k = min(tokens_to_uncover, attended_masks.shape[1])
+        if k > 0:
+            b = (
+                torch.arange(attended_masks.shape[0], device=attended_masks.device)
+                .unsqueeze(1)
+                .expand(-1, k)
+            )
+            topk = sorted_indices[:, :k]
+            attended_masks[b, topk] = True
+            new_mask[:, attended_logit_idx_start:attended_logit_idx_end] = (
+                attended_masks
+            )
 
         return new_mask
 

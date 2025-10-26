@@ -351,5 +351,5 @@ class LanguageTRMModule(BaseLightningModule):
 
             yield current_tokens
 
-            if torch.all(step_output["stop"] > 0):
-                break
+            # if torch.all(step_output["stop"] > 0):
+            #     break
