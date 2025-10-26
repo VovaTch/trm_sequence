@@ -23,6 +23,7 @@ class LanguageTRMModule(BaseLightningModule):
         sample_scheduler: SampleScheduler,
         latent_len: int = 128,
         supervision_steps: int = 4,
+        gradient_clip: float = 0.1,
         transforms: nn.Sequential | None = None,
         loss_aggregator: LossAggregator | None = None,
         optimizer_cfg: dict[str, Any] | None = None,
@@ -53,6 +54,7 @@ class LanguageTRMModule(BaseLightningModule):
         self._sample_scheduler = sample_scheduler
         self._latent_len = latent_len
         self._core_hidden_dim = model.core.hidden_dim
+        self._gradient_clip = gradient_clip
 
     def forward(self, input: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         """
@@ -116,6 +118,7 @@ class LanguageTRMModule(BaseLightningModule):
                 continue
 
             self.manual_backward(loss.total)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self._gradient_clip)
             optimizer.step()
             optimizer.zero_grad()
 
@@ -232,7 +235,7 @@ class LanguageTRMModule(BaseLightningModule):
                 .to(self._device)
             )
             current_mask[:, :init_token_len] = True
-            if step > init_step:
+            if step >= init_step:
                 current_tokens[~current_mask] = self.model.core.vocab_size
                 step_output = self.forward(
                     {"input": current_tokens, "inter output": y, "latent": z}
@@ -253,6 +256,7 @@ class LanguageTRMModule(BaseLightningModule):
 
         return current_tokens
 
+    @torch.no_grad()
     def stream(
         self,
         init_tokens: torch.Tensor | None = None,
@@ -314,8 +318,8 @@ class LanguageTRMModule(BaseLightningModule):
             init_token_len = init_tokens.shape[-1]
         current_mask[:, :init_token_len] = True
 
-        y_init = torch.zeros((1, seq_len, self._core_hidden_dim)).to(self._device)
-        z_init = torch.zeros((1, self._latent_len, self._core_hidden_dim)).to(
+        y_init = torch.randn((1, seq_len, self._core_hidden_dim)).to(self._device)
+        z_init = torch.randn((1, self._latent_len, self._core_hidden_dim)).to(
             self._device
         )
 
@@ -329,7 +333,7 @@ class LanguageTRMModule(BaseLightningModule):
                 .to(self._device)
             )
             current_mask[:, :init_token_len] = True
-            if step > init_step:
+            if step >= init_step:
                 current_tokens[~current_mask] = self.model.core.vocab_size
                 step_output = self.forward(
                     {"input": current_tokens, "inter output": y, "latent": z}
@@ -347,5 +351,5 @@ class LanguageTRMModule(BaseLightningModule):
 
             yield current_tokens
 
-            # if torch.all(step_output["stop"] > 0):
-            #     break
+            if torch.all(step_output["stop"] > 0):
+                break
