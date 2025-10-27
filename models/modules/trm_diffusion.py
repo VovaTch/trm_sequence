@@ -326,6 +326,8 @@ class LanguageTRMModule(BaseLightningModule):
         y = y_init
         z = z_init
 
+        step_output = None
+
         for step in range(num_steps):
             current_mask = (
                 self._sample_scheduler.sample(step, current_mask, current_logits)
@@ -351,5 +353,7 @@ class LanguageTRMModule(BaseLightningModule):
 
             yield current_tokens
 
-            # if torch.all(step_output["stop"] > 0):
-            #     break
+            if step_output:
+                if torch.all(step_output["stop"] > 0):
+                    print(f"step output: {step_output['stop']}")
+                    break

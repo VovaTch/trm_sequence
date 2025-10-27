@@ -140,17 +140,17 @@ class HaltingCrossEntropy(LossComponent):
     def __call__(
         self, pred: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
     ) -> torch.Tensor:
-        prediction = torch.nn.functional.pad(pred[self.pred_stop_key], (0, 1))
+        prediction = pred[self.pred_stop_key]
         pred_logits = (
             pred[self.pred_logits_key]
             if pred[self.pred_logits_key].dim() == 2
             else pred[self.pred_logits_key].permute(0, 2, 1)
         )
         return self.base_loss(
-            prediction,
+            prediction.squeeze(),
             torch.all(
                 torch.argmax(pred_logits, dim=1) == target[self.target_key], dim=1
-            ).long(),
+            ).float(),
         )
 
 
