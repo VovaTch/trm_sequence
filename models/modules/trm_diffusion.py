@@ -83,11 +83,17 @@ class LanguageTRMModule(BaseLightningModule):
         Returns:
             torch.Tensor | None: The total loss if available, otherwise None.
         """
-        y_init = torch.randn(
-            (batch["tokens"].shape[0], batch["tokens"].shape[1], self._core_hidden_dim)
+        # y_init = torch.randn(
+        #     (batch["tokens"].shape[0], batch["tokens"].shape[1], self._core_hidden_dim)
+        # ).to(batch["tokens"].device)
+        # z_init = torch.randn(
+        #     (batch["tokens"].shape[0], self._latent_len, self._core_hidden_dim)
+        # ).to(batch["tokens"].device)
+        y_init = self.model.core.y_init.repeat(
+            (batch["tokens"].shape[0], batch["tokens"].shape[1], 1)
         ).to(batch["tokens"].device)
-        z_init = torch.randn(
-            (batch["tokens"].shape[0], self._latent_len, self._core_hidden_dim)
+        z_init = self.model.core.z_init.repeat(
+            (batch["tokens"].shape[0], self._latent_len, 1)
         ).to(batch["tokens"].device)
 
         y = y_init

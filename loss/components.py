@@ -150,7 +150,9 @@ class HaltingCrossEntropy(LossComponent):
             prediction.squeeze(),
             torch.all(
                 torch.argmax(pred_logits, dim=1) == target[self.target_key], dim=1
-            ).float(),
+            )
+            .float()
+            .squeeze(),
         )
 
 

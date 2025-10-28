@@ -6,6 +6,8 @@ from functools import partial
 import torch
 import torch.nn as nn
 
+from utils.other import rms_norm
+
 from .base import Core
 from .rope import RotaryEmbedding
 from .sin_pos_enc import SinusoidalPositionEmbeddings, apply_pos_encoding
@@ -76,6 +78,17 @@ class DiffusionTransformerTRM(Core):
                     apply_pos_encoding, pos_encoding=pos_embedding_obj
                 )
 
+        self._y_init = nn.Buffer(torch.randn((1, 1, hidden_dim)), persistent=True)
+        self._z_init = nn.Buffer(torch.randn((1, 1, hidden_dim)), persistent=True)
+
+    @property
+    def y_init(self) -> nn.Buffer:
+        return self._y_init
+
+    @property
+    def z_init(self) -> nn.Buffer:
+        return self._z_init
+
     def forward(
         self, x: torch.Tensor | None, y: torch.Tensor, z: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -100,6 +113,8 @@ class DiffusionTransformerTRM(Core):
             y_out, z_out = torch.split(
                 transformer_output, [y.shape[1], z.shape[1]], dim=1
             )
+
+        z_out = rms_norm(z_out, 1e-6)
 
         return y_out, z_out
 

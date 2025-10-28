@@ -17,3 +17,11 @@ class Core(ABC, nn.Module):
     @property
     @abstractmethod
     def vocab_size(self) -> int: ...
+
+    @property
+    @abstractmethod
+    def y_init(self) -> torch.nn.Buffer: ...
+
+    @property
+    @abstractmethod
+    def z_init(self) -> torch.nn.Buffer: ...
