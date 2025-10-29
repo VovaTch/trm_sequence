@@ -165,3 +165,31 @@ class LinearQOutputHead(nn.Module):
         x = self._layers[0](x)
         x = x.view(x.shape[0], -1)
         return self._layers[1](x)
+
+
+class DiffusionSumTransformerTRM(DiffusionTransformerTRM):
+    def forward(
+        self, x: torch.Tensor | None, y: torch.Tensor, z: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if x is None:
+            if y.shape != z.shape:
+                raise ValueError(
+                    f"y and z must have the same shape, got y shape {y.shape} and z shape {z.shape}"
+                )
+
+            sum_in = y + z
+
+        else:
+            if x.shape != y.shape or y.shape != z.shape:
+                raise ValueError(
+                    f"x, y and z must have the same shape, got x shape {x.shape}, y shape {y.shape} and z shape {z.shape}"
+                )
+
+            sum_in = x + y + z
+
+        sum_in = self._pos_embedding(sum_in)
+        transformer_output = self._transformer_encoder(sum_in)
+        return (
+            transformer_output,
+            transformer_output,
+        )  # A bit of a hack, but it should work with everything else

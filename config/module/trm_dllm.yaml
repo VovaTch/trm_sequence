@@ -1,10 +1,10 @@
 _target_: models.modules.trm_diffusion.LanguageTRMModule
 sample_scheduler:
   _target_: utils.sample_schedulers.LinearEntropyBatchSampleScheduler
-  steps_per_batch: 20
+  steps_per_batch: 10
   batch_length: 16
   # _target_: utils.sample_schedulers.LinearSampleScheduler
-  # num_steps: 50
+  # num_steps: 200
 model: ${model}
 latent_len: 128
 supervision_steps: 4

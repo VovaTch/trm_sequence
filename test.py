@@ -40,7 +40,7 @@ with torch.no_grad():
         init_tokens=tokenized_text,
         seq_len=256,
         vocab_size=65,
-        temperature=0.7,
+        temperature=0.3,
         init_step=0,
     ):
         generated_text = tokenizer.decode(generated_tokens.squeeze().cpu().numpy())  # type: ignore
