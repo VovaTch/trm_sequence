@@ -182,13 +182,15 @@ class DiffusionSumTransformerTRM(DiffusionTransformerTRM):
         else:
             if x.shape != y.shape or y.shape != z.shape:
                 raise ValueError(
-                    f"x, y and z must have the same shape, got x shape {x.shape}, y shape {y.shape} and z shape {z.shape}"
+                    f"x, y and z must have the same shape, got x shape {x.shape}, y shape {y.shape} "
+                    f"and z shape {z.shape}"
                 )
 
             sum_in = x + y + z
 
         sum_in = self._pos_embedding(sum_in)
         transformer_output = self._transformer_encoder(sum_in)
+        transformer_output = rms_norm(transformer_output, 1e-6)
         return (
             transformer_output,
             transformer_output,

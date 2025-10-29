@@ -4,4 +4,5 @@ from .dllm_trm import (
     InputEmbedding,
     LinearOutputHead,
     LinearQOutputHead,
+    DiffusionSumTransformerTRM,
 )
