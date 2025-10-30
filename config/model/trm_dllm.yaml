@@ -1,6 +1,6 @@
 _target_: models.models.TinyRecursiveModel
 core:
-  _target_: models.models.backbone.DiffusionTransformerTRM
+  _target_: models.models.backbone.DiffusionSumTransformerTRM
   hidden_dim: 256
   num_layers: 2
   num_heads: 8
@@ -9,7 +9,7 @@ core:
   vocab_size: 65
   embedding_type: 
     _target_: models.models.backbone.dllm_trm.EmbeddingType
-    _args_: ["ROPE"]
+    _args_: ["rope"]
 z_loop: 6
 y_loop: 3
 input_embedding:

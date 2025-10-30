@@ -20,7 +20,10 @@ class RotaryEmbedding(nn.Module):
         self.register_buffer("cached_cos", embeddings.cos(), persistent=False)
         self.register_buffer("cached_sin", embeddings.sin(), persistent=False)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, offset: int | None = None) -> torch.Tensor:
+        """
+        Forward method for RoPE embeddings; offset is unused
+        """
         _, seq_len, _ = x.shape  # Assuming BxSxD dims
 
         cos = self.cached_cos[:seq_len, :]  # type: ignore
