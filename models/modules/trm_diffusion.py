@@ -83,12 +83,6 @@ class LanguageTRMModule(BaseLightningModule):
         Returns:
             torch.Tensor | None: The total loss if available, otherwise None.
         """
-        # y_init = torch.randn(
-        #     (batch["tokens"].shape[0], batch["tokens"].shape[1], self._core_hidden_dim)
-        # ).to(batch["tokens"].device)
-        # z_init = torch.randn(
-        #     (batch["tokens"].shape[0], self._latent_len, self._core_hidden_dim)
-        # ).to(batch["tokens"].device)
         y_init = self.model.core.y_init.repeat(
             (batch["tokens"].shape[0], batch["tokens"].shape[1], 1)
         ).to(batch["tokens"].device)
@@ -226,8 +220,8 @@ class LanguageTRMModule(BaseLightningModule):
             init_token_len = init_tokens.shape[-1]
         current_mask[:, :init_token_len] = True
 
-        y_init = torch.zeros((1, seq_len, self._core_hidden_dim)).to(self._device)
-        z_init = torch.zeros((1, self._latent_len, self._core_hidden_dim)).to(
+        y_init = self.model.core.y_init.repeat((1, seq_len, 1)).to(self._device)
+        z_init = self.model.core.z_init.repeat((1, self._latent_len, 1)).to(
             self._device
         )
 
@@ -324,8 +318,8 @@ class LanguageTRMModule(BaseLightningModule):
             init_token_len = init_tokens.shape[-1]
         current_mask[:, :init_token_len] = True
 
-        y_init = torch.randn((1, seq_len, self._core_hidden_dim)).to(self._device)
-        z_init = torch.randn((1, self._latent_len, self._core_hidden_dim)).to(
+        y_init = self.model.core.y_init.repeat((1, seq_len, 1)).to(self._device)
+        z_init = self.model.core.z_init.repeat((1, self._latent_len, 1)).to(
             self._device
         )
 

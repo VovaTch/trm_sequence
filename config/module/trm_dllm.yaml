@@ -7,7 +7,7 @@ sample_scheduler:
   num_steps: 50
 model: ${model}
 latent_len: 1024
-supervision_steps: 4
+supervision_steps: 16
 learning_params: ${learning}
 loss_aggregator: ${loss.aggregator}
 optimizer_cfg: ${optimizer}

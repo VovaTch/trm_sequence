@@ -21,8 +21,8 @@ model = load_inner_model_state_dict(model, weights_path).to(device).eval()  # ty
 
 tokenizer = CharLevelTokenizer()
 
-# TEXT = "What is the meaning of life?"
-TEXT = "The meaning of life is"
+TEXT = "KING:"
+# TEXT = "The meaning of life is"
 tokenized_text = tokenizer.encode(TEXT)
 tokenized_text = torch.tensor(tokenized_text).unsqueeze(0)
 
