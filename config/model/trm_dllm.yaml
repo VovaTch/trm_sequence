@@ -7,6 +7,9 @@ core:
   seq_delimiter: 4096
   dropout: 0.0
   vocab_size: 65
+  embedding_type: 
+    _target_: models.models.backbone.dllm_trm.EmbeddingType
+    _args_: ["ROPE"]
 z_loop: 6
 y_loop: 3
 input_embedding:

@@ -38,7 +38,7 @@ prev_rows = 0
 with torch.no_grad():
     for generated_tokens in model.stream(
         init_tokens=tokenized_text,
-        seq_len=256,
+        seq_len=1024,
         vocab_size=65,
         temperature=0.1,
         init_step=0,
