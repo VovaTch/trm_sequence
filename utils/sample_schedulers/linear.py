@@ -48,7 +48,9 @@ class LinearEntropyBatchSampleScheduler(SampleScheduler):
     one described in the LLaDa paper.
     """
 
-    def __init__(self, batch_length: int, steps_per_batch: int) -> None:
+    def __init__(
+        self, batch_length: int, steps_per_batch: int, seq_length: int
+    ) -> None:
         """
         Initialize the scheduler with the given batch length and steps per batch.
 
@@ -59,6 +61,7 @@ class LinearEntropyBatchSampleScheduler(SampleScheduler):
         super().__init__()
         self._batch_length = batch_length
         self._steps_per_batch = steps_per_batch
+        self._seq_length = seq_length
 
     def sample(
         self, step: int, prev_mask: torch.Tensor, logits: torch.Tensor
@@ -105,4 +108,4 @@ class LinearEntropyBatchSampleScheduler(SampleScheduler):
         Returns:
             int: The number of steps.
         """
-        return self._batch_length * self._steps_per_batch
+        return self._seq_length // self._batch_length * self._steps_per_batch
