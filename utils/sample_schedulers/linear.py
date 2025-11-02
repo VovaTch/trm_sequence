@@ -80,7 +80,7 @@ class LinearEntropyBatchSampleScheduler(SampleScheduler):
         attended_entropy = (
             -F.softmax(attended_logits, dim=-1) * F.log_softmax(attended_logits, dim=-1)
         ).sum(dim=-1)
-        _, sorted_indices = attended_entropy.sort(dim=1, descending=True)
+        _, sorted_indices = attended_entropy.sort(dim=1, descending=False)
         tokens_to_uncover = math.ceil(
             (step % self._steps_per_batch + 1)
             * (self._batch_length / self._steps_per_batch)
