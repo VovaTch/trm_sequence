@@ -2,21 +2,28 @@ import logging
 import os
 import time
 from multiprocessing import Pool
+from typing import Generator
 
 from pyarrow import parquet as pq
-from torch.utils.data import Dataset
+import torch
+from torch.utils.data import IterableDataset
 import requests
-from multiprocessing import Pool
 
 from models.tokenizers.base import CustomTokenizer
+from utils.ddp import get_dist_info
 from utils.logger import LOGGER
+
+from ..base import Stage
 
 MAX_SHARD = 1822
 
 
-class FinewebKarpathyDataset(Dataset):
+class FinewebKarpathyDataset(IterableDataset):
     def __init__(
         self,
+        batch_size: int,
+        seq_length: int,
+        stage: Stage,
         data: str = os.path.join("data", "fineweb_karpathy"),
         base_url: str = "https://huggingface.co/datasets/karpathy/fineweb-edu-100b-shuffle/resolve/main",
         max_shard: int = 1822,
@@ -36,12 +43,13 @@ class FinewebKarpathyDataset(Dataset):
         self._chunk_size = chunk_size
         self._num_files = num_files
         self._num_workers = num_workers
+        self._batch_size = batch_size
+        self._seq_length = seq_length
+        self._stage = stage
 
         self._tokenizer = tokenizer  # TODO: temporary before adding Karpathy's tokenizer to the mix, it should be similar to GPT4's
 
         os.makedirs(data, exist_ok=True)
-
-        self._index_to_filename = lambda index: f"shard_{index:05d}.parquet"
 
         ids_to_download = list(
             range(MAX_SHARD + 1 if num_files == -1 else min(num_files, MAX_SHARD + 1))
@@ -54,6 +62,12 @@ class FinewebKarpathyDataset(Dataset):
 
         successful = sum(1 for success in results if success)
         logger.info(f"Successfully downloaded {successful} files")
+
+        _, self._ddp_rank, _, self._ddp_world_size = get_dist_info()
+        logger.info(f"[Rank {self._ddp_rank}] Dataset initialized ")
+
+    def _index_to_filename(self, index: int) -> str:
+        return f"shard_{index:05d}.parquet"
 
     def _list_parquet_files(self) -> list[str]:
         """
@@ -129,3 +143,43 @@ class FinewebKarpathyDataset(Dataset):
                     return False
 
         return False
+
+    def _parquet_iter_batched(self, start: int = 0, step: int = 1):
+        parquet_paths = self._list_parquet_files()
+        parquet_paths = (
+            parquet_paths[:-1] if self._stage == Stage.TRAIN else parquet_paths[-1:]
+        )
+
+        for file_path in parquet_paths:
+            parquet_file = pq.ParquetFile(file_path)
+            for row_group_idx in range(start, parquet_file.num_row_groups, step):
+                row_group = parquet_file.read_row_group(row_group_idx)
+                texts = row_group["text"].to_pylist()
+                yield texts
+
+    def _document_batched(self) -> Generator[list[int], None, None]:
+        _, ddp_rank, _, ddp_world_size = get_dist_info()
+        while True:
+            for batch in self._parquet_iter_batched(
+                start=ddp_rank, step=ddp_world_size
+            ):
+                for idx in range(0, len(batch), self._seq_length):
+                    yield batch[idx : idx + self._seq_length]
+
+    def __iter__(self):
+
+        batch_generator = self._document_batched()
+        batch_idx = 0
+
+        assert self._tokenizer is not None
+
+        # main iter loop
+        while True:
+            token_sample = next(batch_generator)
+            tokens_torch = torch.tensor(token_sample, dtype=torch.long)
+
+            prob_to_mask = torch.rand((1,))
+            p_mask = torch.ones(tokens_torch.shape[0]) * prob_to_mask
+            mask = torch.bernoulli(p_mask).bool()
+            batch_idx += 1
+            yield {"tokens": tokens_torch, "mask": mask}
