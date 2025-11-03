@@ -48,6 +48,12 @@ class CharLevelTokenizer(CustomTokenizer):
         self._text2token_map = text2token
         self._token2text_map = token2text
 
+    @property
+    def vocab_size(self) -> int:
+        if self._text2token_map is None:
+            raise RuntimeError("Mapping not found; create or load a mapping first")
+        return len(self._text2token_map)
+
     def create_mappings(self, text: str) -> tuple[dict[int, str], dict[str, int]]:
         characters = sorted(list(set(text)))
         stoi = {ch: i for i, ch in enumerate(characters)}

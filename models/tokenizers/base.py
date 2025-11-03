@@ -19,3 +19,7 @@ class CustomTokenizer(ABC):
 
     @abstractmethod
     def decode(self, token_idx: Sequence[int]) -> str: ...
+
+    @property
+    @abstractmethod
+    def vocab_size(self) -> int: ...
