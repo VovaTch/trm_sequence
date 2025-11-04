@@ -1,10 +1,13 @@
+import logging
 import os
 import pickle
-from typing import Generator, Self
+from typing import Generator, Self, Sequence
 
 import tiktoken
 
 import rustbpe
+
+from utils.logger import LOGGER
 
 SPECIAL_TOKENS = [
     # every document begins with the Beginning of Sequence (BOS) token that delimits documents
@@ -27,9 +30,17 @@ SPLIT_PATTERN = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,2}| 
 
 
 class RustBPETokenizer:
-    def __init__(self, encoder, bos_token: str) -> None:
+    def __init__(
+        self,
+        encoder: tiktoken.Encoding,
+        bos_token: str,
+        num_threads: int = 8,
+        logger: logging.Logger = LOGGER,
+    ) -> None:
         self._encoder = encoder
         self._bos_token = bos_token
+        self._logger = logger
+        self._num_threads = num_threads
 
     @classmethod
     def train_from_iterator(
@@ -39,9 +50,12 @@ class RustBPETokenizer:
         tokenizer = rustbpe.Tokenizer()  # type: ignore
         # the special tokens are inserted later in __init__, we don't train them here
         vocab_size_no_special = vocab_size - len(SPECIAL_TOKENS)
-        assert (
-            vocab_size_no_special >= 256
-        ), f"vocab_size_no_special must be at least 256, got {vocab_size_no_special}"
+
+        if vocab_size_no_special < 256:
+            raise ValueError(
+                f"vocab_size_no_special must be at least 256, got {vocab_size_no_special}"
+            )
+
         tokenizer.train_from_iterator(
             text_iterator, vocab_size_no_special, pattern=SPLIT_PATTERN
         )
@@ -72,3 +86,20 @@ class RustBPETokenizer:
     def from_pretrained(cls, tiktoken_name: str) -> Self:
         enc = tiktoken.get_encoding(tiktoken_name)
         return cls(enc, "<|endoftext|>")
+
+    def save(self, path: str) -> None:
+        os.makedirs(path, exist_ok=True)
+        pickle_file = os.path.join(path, "meta.pkl")
+        with open(pickle_file, "wb") as f:
+            pickle.dump(self._encoder, f)
+        self._logger.info(f"Saved tokenizer into {pickle_file}")
+
+    def encode(self, text: str) -> list[int]:
+        return self._encoder.encode_ordinary(text)
+
+    def decode(self, token_idx: Sequence[int]) -> str:
+        return self._encoder.decode(token_idx)
+
+    @property
+    def vocab_size(self) -> int:
+        return self._encoder.n_vocab
