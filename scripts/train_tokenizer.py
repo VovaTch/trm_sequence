@@ -52,7 +52,7 @@ if __name__ == "__main__":
         "-c",
         "--max_chars",
         type=int,
-        default=1e9,
+        default=2e7,
         help="Maximum characters to train on",
     )
     parser.add_argument(

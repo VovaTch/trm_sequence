@@ -77,7 +77,7 @@ class RustBPETokenizer:
 
     @classmethod
     def from_directory(cls, tokenizer_dir: str) -> Self:
-        pickle_path = os.path.join(tokenizer_dir, "tokenizer.pkl")
+        pickle_path = os.path.join(tokenizer_dir, "meta.pkl")
         with open(pickle_path, "rb") as f:
             enc = pickle.load(f)
         return cls(enc, "<|bos|>")
@@ -103,3 +103,14 @@ class RustBPETokenizer:
     @property
     def vocab_size(self) -> int:
         return self._encoder.n_vocab
+
+    @property
+    def bos_token(self) -> str:
+        return self._bos_token
+
+    @property
+    def bos_token_id(self) -> int:
+        encoded_bos_tokens = self._encoder.encode_ordinary(self._bos_token)
+        if len(encoded_bos_tokens) != 1:
+            raise RuntimeError("BOS token should be encoded into a single token")
+        return encoded_bos_tokens[0]

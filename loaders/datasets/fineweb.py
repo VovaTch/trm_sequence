@@ -10,6 +10,7 @@ from torch.utils.data import IterableDataset
 import requests
 
 from models.tokenizers.base import CustomTokenizer
+from models.tokenizers.rustbpe import RustBPETokenizer
 from utils.ddp import get_dist_info
 from utils.logger import LOGGER
 
@@ -30,7 +31,7 @@ class FinewebKarpathyDataset(IterableDataset):
         tokenizer: CustomTokenizer | None = None,
         download_retries: int = 5,
         chunk_size: int = 1024 * 1024,
-        num_files: int = -1,
+        num_files: int = 240,
         num_workers: int = 4,
         logger: logging.Logger = LOGGER,
     ) -> None:
@@ -47,7 +48,11 @@ class FinewebKarpathyDataset(IterableDataset):
         self._seq_length = seq_length
         self._stage = stage
 
-        self._tokenizer = tokenizer  # TODO: temporary before adding Karpathy's tokenizer to the mix, it should be similar to GPT4's
+        self._tokenizer = (
+            tokenizer
+            if tokenizer is not None
+            else RustBPETokenizer.from_directory(data)
+        )
 
         os.makedirs(data, exist_ok=True)
 
@@ -144,7 +149,9 @@ class FinewebKarpathyDataset(IterableDataset):
 
         return False
 
-    def _parquet_iter_batched(self, start: int = 0, step: int = 1):
+    def _parquet_iter_batched(
+        self, start: int = 0, step: int = 1
+    ) -> Generator[list[str], None, None]:
         parquet_paths = self._list_parquet_files()
         parquet_paths = (
             parquet_paths[:-1] if self._stage == Stage.TRAIN else parquet_paths[-1:]
@@ -157,14 +164,14 @@ class FinewebKarpathyDataset(IterableDataset):
                 texts = row_group["text"].to_pylist()
                 yield texts
 
-    def _document_batched(self) -> Generator[list[int], None, None]:
+    def _document_batched(self) -> Generator[str, None, None]:
         _, ddp_rank, _, ddp_world_size = get_dist_info()
         while True:
             for batch in self._parquet_iter_batched(
                 start=ddp_rank, step=ddp_world_size
             ):
-                for idx in range(0, len(batch), self._seq_length):
-                    yield batch[idx : idx + self._seq_length]
+                for line in batch:
+                    yield line
 
     def __iter__(self):
 
