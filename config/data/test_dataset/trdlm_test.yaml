@@ -1,0 +1,9 @@
+_target_: loaders.datasets.FinewebKarpathyDataset
+batch_size: ${learning.batch_size}
+seq_length: ${seq_length}
+stage:
+  _target_: loaders.base.Stage
+  _args_: [val]
+data: data/fineweb_karpathy
+num_files: 240
+num_workers: 4

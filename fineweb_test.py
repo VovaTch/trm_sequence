@@ -9,6 +9,7 @@ def main() -> None:
 
     for idx, batch in enumerate(fineweb_dataset):
         print(batch["tokens"])
+        print(batch["tokens"].shape)
         if (idx + 1) % MAX_IDX == 0:
             break
 

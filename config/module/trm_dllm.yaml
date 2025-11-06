@@ -3,11 +3,12 @@ sample_scheduler:
   _target_: utils.sample_schedulers.LinearEntropyBatchSampleScheduler
   steps_per_batch: 10
   batch_length: 16
+  seq_length: ${seq_length}
   # _target_: utils.sample_schedulers.LinearSampleScheduler
   # num_steps: 32
 model: ${model}
 latent_len: 1024
-supervision_steps: 16
+supervision_steps: 8
 learning_params: ${learning}
 loss_aggregator: ${loss.aggregator}
 optimizer_cfg: ${optimizer}

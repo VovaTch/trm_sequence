@@ -31,12 +31,14 @@ class SeparatedSetModule(L.LightningDataModule):
         train_dataset: Dataset,
         val_dataset: Dataset,
         test_dataset: Dataset | None = None,
+        train_shuffle: bool = True,
     ) -> None:
         super().__init__()
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.test_dataset = test_dataset if test_dataset is not None else val_dataset
         self.learning_params = learning_params
+        self._train_shuffle = train_shuffle
 
     def train_dataloader(self) -> DataLoader:
         """
@@ -48,7 +50,7 @@ class SeparatedSetModule(L.LightningDataModule):
         return DataLoader(
             self.train_dataset,
             batch_size=self.learning_params.batch_size,
-            shuffle=True,
+            shuffle=self._train_shuffle,
             num_workers=self.learning_params.num_workers,
             pin_memory=self.learning_params.pin_memory,
         )

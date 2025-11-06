@@ -1,0 +1,17 @@
+defaults:
+  - _self_
+  - data: trdlm
+  - learning: standard
+  - optimizer: adamw_standard
+  - scheduler: one_cycle_lr
+  - loss: trm_dllm
+  - model: fineweb
+  - module: trm_dllm
+
+project_name: LightningTemplate
+model_name: trm_dllm
+resume: null
+
+# Optimizations
+use_torch_compile: False
+seq_length: 1024

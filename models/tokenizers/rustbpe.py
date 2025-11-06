@@ -1,3 +1,4 @@
+from functools import lru_cache
 import logging
 import os
 import pickle
@@ -87,6 +88,10 @@ class RustBPETokenizer:
         enc = tiktoken.get_encoding(tiktoken_name)
         return cls(enc, "<|endoftext|>")
 
+    @lru_cache(maxsize=32)
+    def encode_special(self, text: str) -> int:
+        return self._encoder.encode_single_token(text)
+
     def save(self, path: str) -> None:
         os.makedirs(path, exist_ok=True)
         pickle_file = os.path.join(path, "meta.pkl")
@@ -110,7 +115,9 @@ class RustBPETokenizer:
 
     @property
     def bos_token_id(self) -> int:
-        encoded_bos_tokens = self._encoder.encode_ordinary(self._bos_token)
+        encoded_bos_tokens = self._encoder.encode(
+            self._bos_token, allowed_special={"<|bos|>"}
+        )
         if len(encoded_bos_tokens) != 1:
             raise RuntimeError("BOS token should be encoded into a single token")
         return encoded_bos_tokens[0]

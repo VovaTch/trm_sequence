@@ -1,0 +1,8 @@
+defaults:
+  - train_dataset: trdlm_train
+  - val_dataset: trdlm_val
+  - test_dataset: trdlm_test
+
+_target_: loaders.SeparatedSetModule
+learning_params: ${learning}
+train_shuffle: false

@@ -1,3 +1,4 @@
+from collections import deque
 import logging
 import os
 import time
@@ -181,8 +182,15 @@ class FinewebKarpathyDataset(IterableDataset):
         assert self._tokenizer is not None
 
         # main iter loop
+        token_queue = deque()
         while True:
-            token_sample = next(batch_generator)
+            while len(token_queue) < self._seq_length:
+                sampled_text = next(batch_generator)
+                tokens = [self._tokenizer.bos_token_id] + self._tokenizer.encode(  # type: ignore TODO: have it in the interface?
+                    sampled_text
+                )
+                token_queue.extend(tokens)
+            token_sample = [token_queue.popleft() for _ in range(self._seq_length)]
             tokens_torch = torch.tensor(token_sample, dtype=torch.long)
 
             prob_to_mask = torch.rand((1,))
