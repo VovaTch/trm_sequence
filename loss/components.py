@@ -136,23 +136,27 @@ class HaltingCrossEntropy(LossComponent):
     pred_stop_key: str = "stop"
     pred_logits_key: str = "logits"
     target_key: str = "class"
+    mask_key: str = "mask"
 
     def __call__(
         self, pred: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
     ) -> torch.Tensor:
         prediction = pred[self.pred_stop_key]
-        pred_logits = (
-            pred[self.pred_logits_key]
-            if pred[self.pred_logits_key].dim() == 2
-            else pred[self.pred_logits_key].permute(0, 2, 1)
-        )
+        pred_logits = pred[self.pred_logits_key]
+
+        mask = target[self.mask_key]
+        target_halting_col = []
+        for idx in range(pred_logits.shape[0]):
+            target_halting_ind = torch.all(
+                torch.argmax(pred_logits[idx][~mask[idx]], dim=1)
+                == target[self.target_key][idx][~mask[idx]]
+            )
+            target_halting_col.append(target_halting_ind)
+        target_halting = torch.stack(target_halting_col)
+
         return self.base_loss(
             prediction.squeeze(),
-            torch.all(
-                torch.argmax(pred_logits, dim=1) == target[self.target_key], dim=1
-            )
-            .float()
-            .squeeze(),
+            target_halting.float().squeeze(),
         )
 
 
