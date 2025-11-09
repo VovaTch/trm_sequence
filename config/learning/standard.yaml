@@ -29,3 +29,6 @@ loss_monitor: ${scheduler.module_params.loss_monitor}
 interval: ${scheduler.module_params.interval}
 frequency: ${scheduler.module_params.frequency}
 trigger_loss: ${scheduler.module_params.trigger_loss}
+
+# Saving
+save_every_n_train_steps: 0

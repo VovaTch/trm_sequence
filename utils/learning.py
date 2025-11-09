@@ -46,6 +46,7 @@ def get_trainer(learning_parameters: LearningParameters) -> L.Trainer:
     loggers: list[Logger] = [tensorboard_logger]
 
     model_checkpoint_callback = ModelCheckpoint(
+        every_n_train_steps=learning_parameters.save_every_n_train_steps,
         dirpath=save_folder,
         filename=learning_parameters.model_name,
         save_weights_only=True,

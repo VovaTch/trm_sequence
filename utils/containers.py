@@ -27,6 +27,7 @@ class LearningParameters:
     trigger_loss: float = 0.0
     interval: str = "step"
     frequency: int = 1
+    save_every_n_train_steps: int = 0
     limit_train_batches: int | float | None = None
     limit_eval_batches: int | float | None = None
     limit_test_batches: int | float | None = None
