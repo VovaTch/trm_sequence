@@ -49,13 +49,14 @@ class FinewebKarpathyDataset(IterableDataset):
         self._seq_length = seq_length
         self._stage = stage
 
+        os.makedirs(data, exist_ok=True)
+
         self._tokenizer = (
             tokenizer
             if tokenizer is not None
             else RustBPETokenizer.from_directory(data)
         )
 
-        os.makedirs(data, exist_ok=True)
 
         ids_to_download = list(
             range(MAX_SHARD + 1 if num_files == -1 else min(num_files, MAX_SHARD + 1))

@@ -1,7 +1,7 @@
 _target_: models.models.TinyRecursiveModel
 core:
   _target_: models.models.backbone.DiffusionSumTransformerTRM
-  hidden_dim: 256
+  hidden_dim: 512
   num_layers: 2
   num_heads: 8
   seq_delimiter: 4096

@@ -9,6 +9,7 @@ from lightning.pytorch.callbacks import (
     ModelSummary,
 )
 from lightning.pytorch.loggers import Logger, TensorBoardLogger
+from lightning.pytorch.strategies import DDPStrategy
 
 from .ema import EMA
 from .containers import LearningParameters
@@ -66,6 +67,7 @@ def get_trainer(learning_parameters: LearningParameters) -> L.Trainer:
     precision = 16 if learning_parameters.amp else 32
 
     model_summary = ModelSummary(max_depth=2)
+    ddp = DDPStrategy(process_group_backend='gloo')
     trainer = L.Trainer(
         # gradient_clip_val=learning_parameters.gradient_clip,
         logger=loggers,
@@ -77,7 +79,7 @@ def get_trainer(learning_parameters: LearningParameters) -> L.Trainer:
             ema,
         ],
         # strategy="ddp_find_unused_parameters_true",
-        strategy="ddp",
+        strategy=ddp,
         devices=devices,
         max_epochs=learning_parameters.epochs,
         log_every_n_steps=1,
