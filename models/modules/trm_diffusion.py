@@ -357,3 +357,6 @@ class LanguageTRMModule(BaseLightningModule):
                 if torch.all(step_output["stop"] > 0):
                     print(f"step output: {step_output['stop']}")
                     break
+
+            if (~current_mask).sum() == 0:
+                break

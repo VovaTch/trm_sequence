@@ -1,0 +1,4 @@
+_target_: utils.sample_schedulers.LinearEntropyBatchSampleScheduler
+steps_per_batch: 10
+batch_length: 16
+seq_length: ${seq_length}
