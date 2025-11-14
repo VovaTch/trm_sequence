@@ -127,8 +127,8 @@ class LanguageTRMModule(BaseLightningModule):
             for name in loss.individual:
                 total_loss_output.individual[name] = (
                     total_loss_output.individual.get(name, 0)
-                    + loss.individual[name].detach()
-                ) / self._supervision_steps
+                    + loss.individual[name].detach() / self._supervision_steps
+                )
 
             if phase != "training":
                 continue

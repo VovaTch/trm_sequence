@@ -224,12 +224,13 @@ class MaskedClassificationLoss(LossComponent):
             torch.Tensor: loss
         """
         mask = ~target[self.mask_key]
+        mask_size = mask.flatten().shape[0]
         if pred[self.pred_key].dim() == 4:
             logits = pred[self.pred_key][mask].permute(0, 2, 1)
         elif pred[self.pred_key].dim() == 3:
             logits = pred[self.pred_key][mask]
         labels = target[self.ref_key][mask]
-        return self.base_loss(logits, labels)  # type: ignore
+        return self.base_loss(logits, labels) / mask_size  # type: ignore
 
 
 @dataclass
