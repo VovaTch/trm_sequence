@@ -27,7 +27,7 @@
       "module": "scripts.train",
       "console": "integratedTerminal",
       "justMyCode": true,
-      "args": ["--config-name=trm_dllm"]
+      "args": ["--config-name=trm_dllm"] //"resume=weights/trm_dllm.ckpt"]
     },
     {
       "name": "Python: Test",

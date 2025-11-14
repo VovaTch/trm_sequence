@@ -12,12 +12,12 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Current device is {device}")
 
 # Load network
-# with hydra.initialize(version_base=None, config_path="config"):
-#     cfg = hydra.compose(config_name="trm_dllm")
-with hydra.initialize(version_base=None, config_path="trained/trm_dllm"):
-    cfg = hydra.compose(config_name="config")
+with hydra.initialize(version_base=None, config_path="config"):
+    cfg = hydra.compose(config_name="trm_dllm")
+# with hydra.initialize(version_base=None, config_path="trained/trm_dllm"):
+#     cfg = hydra.compose(config_name="config")
 cfg.learning.batch_size = 128
-weights_path = "trained/trm_dllm/model.ckpt"
+weights_path = "weights/trm_dllm.ckpt"
 model: LanguageTRMModule = hydra.utils.instantiate(cfg.module)
 model = load_inner_model_state_dict(model, weights_path).to(device).eval()  # type: ignore
 
@@ -42,7 +42,7 @@ with torch.no_grad():
         init_tokens=tokenized_text,
         seq_len=1024,
         vocab_size=65,
-        temperature=0.1,
+        temperature=0.7,
         init_step=0,
     ):
         generated_text = tokenizer.decode(generated_tokens.squeeze().cpu().numpy())  # type: ignore

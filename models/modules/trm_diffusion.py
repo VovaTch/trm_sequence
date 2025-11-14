@@ -24,6 +24,7 @@ class LanguageTRMModule(BaseLightningModule):
         latent_len: int = 128,
         supervision_steps: int = 4,
         gradient_clip: float = 0.1,
+        random_step_mask: bool = True,
         transforms: nn.Sequential | None = None,
         loss_aggregator: LossAggregator | None = None,
         optimizer_cfg: dict[str, Any] | None = None,
@@ -55,6 +56,7 @@ class LanguageTRMModule(BaseLightningModule):
         self._latent_len = latent_len
         self._core_hidden_dim = model.core.hidden_dim
         self._gradient_clip = gradient_clip
+        self._random_step_mask = random_step_mask
 
     def forward(self, input: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         """
@@ -98,8 +100,17 @@ class LanguageTRMModule(BaseLightningModule):
             optimizer = optimizer[0]
         optimizer.zero_grad()
 
-        for _ in range(self._supervision_steps):
+        total_loss_output = LossOutput(torch.zeros(1).to(batch["tokens"].device), {})
+
+        for idx in range(self._supervision_steps):
+
             masked_token_input = batch["tokens"].clone()
+            if self._random_step_mask:
+                ber_prob = (
+                    torch.ones_like(batch["tokens"]) * idx / self._supervision_steps
+                )
+                ber_dist = torch.distributions.Bernoulli(ber_prob)
+                batch["mask"] = ber_dist.sample().to(dtype=torch.bool)
             masked_token_input[~batch["mask"]] = self.model.core.vocab_size
 
             sup_step_output = self.forward(
@@ -112,7 +123,12 @@ class LanguageTRMModule(BaseLightningModule):
             z = sup_step_output["latent"]
 
             loss = self.loss_aggregator(sup_step_output, batch)
-            self.log_loss(loss, phase)
+            total_loss_output.total += loss.total.detach() / self._supervision_steps
+            for name in loss.individual:
+                total_loss_output.individual[name] = (
+                    total_loss_output.individual.get(name, 0)
+                    + loss.individual[name].detach()
+                ) / self._supervision_steps
 
             if phase != "training":
                 continue
@@ -124,6 +140,8 @@ class LanguageTRMModule(BaseLightningModule):
 
             if torch.all(sup_step_output["stop"] > 0):
                 break
+
+        self.log_loss(total_loss_output, phase)
 
         if phase != "training":
             return
