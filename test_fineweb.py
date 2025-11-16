@@ -33,13 +33,15 @@ def rows_used(text: str, width: int) -> int:
     return total
 
 
+generated_text = ""
+
 prev_rows = 0
 with torch.no_grad():
     for generated_tokens in model.stream(
         init_tokens=tokenized_text,
         seq_len=1024,
         vocab_size=65536,
-        temperature=0.4,
+        temperature=0.6,
         init_step=0,
     ):
         generated_text = tokenizer.decode(generated_tokens.squeeze().cpu().numpy())  # type: ignore
