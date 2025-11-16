@@ -102,15 +102,25 @@ class LanguageTRMModule(BaseLightningModule):
 
         total_loss_output = LossOutput(torch.zeros(1).to(batch["tokens"].device), {})
 
+        rand_idx = None
+        if self._random_step_mask:
+            rand_t = torch.rand_like(batch["tokens"].float())
+            rand_idx = torch.argsort(rand_t, dim=-1)
+
         for idx in range(self._supervision_steps):
 
             masked_token_input = batch["tokens"].clone()
             if self._random_step_mask:
-                ber_prob = (
-                    torch.ones_like(batch["tokens"]) * idx / self._supervision_steps
-                )
-                ber_dist = torch.distributions.Bernoulli(ber_prob)
-                batch["mask"] = ber_dist.sample().to(dtype=torch.bool)
+                mask = torch.zeros_like(batch["tokens"], dtype=torch.bool)
+                assert (
+                    rand_idx is not None
+                ), "Makes the type checker happy; should never get there"
+                sub_rand_idx = rand_idx[
+                    :, : int(idx / self._supervision_steps * batch["tokens"].shape[1])
+                ]
+                for idx, sub_rand_idx_row in enumerate(sub_rand_idx):
+                    mask[idx, sub_rand_idx_row] = True
+                batch["mask"] = mask
             masked_token_input[~batch["mask"]] = self.model.core.vocab_size
 
             sup_step_output = self.forward(

@@ -9,7 +9,7 @@ defaults:
   - module: trm_dllm
 
 project_name: LightningTemplate
-model_name: trm_dllm
+model_name: fineweb
 resume: null
 
 # Optimizations
