@@ -1,11 +1,11 @@
 defaults:
   - _self_
-  - sample_scheduler: threshold
+  - sample_scheduler: linear
 
 _target_: models.modules.trm_diffusion.LanguageTRMModule
 model: ${model}
 latent_len: 1024
-supervision_steps: 16
+supervision_steps: 8
 learning_params: ${learning}
 loss_aggregator: ${loss.aggregator}
 optimizer_cfg: ${optimizer}

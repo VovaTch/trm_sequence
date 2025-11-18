@@ -1,2 +1,2 @@
 _target_: utils.sample_schedulers.LinearSampleScheduler
-num_steps: 64
+num_steps: 128

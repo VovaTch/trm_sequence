@@ -46,8 +46,8 @@ def get_trainer(learning_parameters: LearningParameters) -> L.Trainer:
     )
     loggers: list[Logger] = [tensorboard_logger]
 
-    model_checkpoint_callback = ModelCheckpoint(
-        every_n_train_steps=learning_parameters.save_every_n_train_steps,
+    model_checkpoint_callbacks = []
+    model_checkpoint_callback_val = ModelCheckpoint(
         dirpath=save_folder,
         filename=learning_parameters.model_name,
         save_weights_only=True,
@@ -55,6 +55,18 @@ def get_trainer(learning_parameters: LearningParameters) -> L.Trainer:
         monitor=learning_parameters.loss_monitor,
         enable_version_counter=False,
     )
+    model_checkpoint_callbacks.append(model_checkpoint_callback_val)
+    if learning_parameters.save_every_n_train_steps > 0:
+        model_checkpoint_callback_train = ModelCheckpoint(
+            dirpath=save_folder,
+            filename=learning_parameters.model_name + "_train",
+            save_weights_only=True,
+            every_n_train_steps=learning_parameters.save_every_n_train_steps,
+            save_top_k=-1,
+            enable_version_counter=False,
+        )
+        model_checkpoint_callbacks.append(model_checkpoint_callback_train)
+
     early_stopping = EarlyStopping(
         monitor=learning_parameters.loss_monitor,
         stopping_threshold=learning_parameters.trigger_loss,
@@ -67,13 +79,13 @@ def get_trainer(learning_parameters: LearningParameters) -> L.Trainer:
     precision = 16 if learning_parameters.amp else 32
 
     model_summary = ModelSummary(max_depth=2)
-    ddp = DDPStrategy(process_group_backend='gloo')
+    ddp = DDPStrategy(process_group_backend="gloo")
     trainer = L.Trainer(
         # gradient_clip_val=learning_parameters.gradient_clip,
         logger=loggers,
         callbacks=[
             early_stopping,
-            model_checkpoint_callback,
+            *model_checkpoint_callbacks,
             model_summary,
             learning_rate_monitor,
             ema,
