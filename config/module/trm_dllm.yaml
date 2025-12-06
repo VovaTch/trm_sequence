@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - sample_scheduler: threshold
+  - sample_scheduler: linear
 
 _target_: models.modules.trm_diffusion.LanguageTRMModule
 model: ${model}

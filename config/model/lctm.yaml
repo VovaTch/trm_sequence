@@ -1,0 +1,27 @@
+_target_: models.models.ctm.LanguageContinuousThoughtMachine
+model_width: 64
+model_depth: 16
+input_width: 32
+num_attn_heads: 8
+max_thought_step: 16
+sync_dim_action: 64
+sync_dim_output: 64
+vocab_size: 65
+
+# Synapse
+synapse:
+  _target_: models.models.ctm_components.SwigLU
+  input_dim: ${model.model_width + model.input_width}
+  hidden_dim: 1024
+  output_dim: ${model.model_width}
+
+# Neuron
+neuron_level_model:
+  _target_: models.models.ctm_components.LinearNeuronModel
+  history_depth: ${model.model_depth}
+
+# Output
+output_proj:
+  _target_: models.models.ctm_components.LinearOutputProj
+  hidden_dim: ${model.model_width}
+  output_dim: ${model.vocab_size}
