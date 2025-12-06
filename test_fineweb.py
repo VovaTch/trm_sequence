@@ -14,7 +14,7 @@ print(f"Current device is {device}")
 with hydra.initialize(version_base=None, config_path="config"):
     cfg = hydra.compose(config_name="fineweb")
 cfg.learning.batch_size = 128
-weights_path = "weights/trm_dllm.ckpt"
+weights_path = "weights/fineweb.ckpt"
 model: LanguageTRMModule = hydra.utils.instantiate(cfg.module).to(device)
 model = load_inner_model_state_dict(model, weights_path).to(device).eval()  # type: ignore
 
@@ -46,14 +46,14 @@ with torch.no_grad():
     ):
         generated_text = tokenizer.decode(generated_tokens.squeeze().cpu().numpy())  # type: ignore
 
-        # if prev_rows:
-        #     sys.stdout.write(f"\x1b[{prev_rows}F")
+        if prev_rows:
+            sys.stdout.write(f"\x1b[{prev_rows}F")
 
-        # sys.stdout.write("\x1b[J")
-        # sys.stdout.write(
-        #     generated_text + ("\n" if not generated_text.endswith("\n") else "")
-        # )
-        # sys.stdout.flush()
+        sys.stdout.write("\x1b[J")
+        sys.stdout.write(
+            generated_text + ("\n" if not generated_text.endswith("\n") else "")
+        )
+        sys.stdout.flush()
 
         width = shutil.get_terminal_size().columns or 80
         prev_rows = rows_used(generated_text, width)
