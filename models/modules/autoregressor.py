@@ -3,8 +3,8 @@ from typing import Any
 import torch
 import torch.nn as nn
 
-from ...loss.aggregators import LossOutput
-from ...utils.containers import LearningParameters
+from loss.aggregators import LossOutput
+from utils.containers import LearningParameters
 from .base import BaseLightningModule, LossAggregator
 
 
@@ -45,7 +45,9 @@ class AutoRegressorModule(BaseLightningModule):
             dict[str, torch.Tensor]: Output dictionary containing the model predictions.
         """
         tokens = input["tokens"]
-        return self.model(tokens, tokens.shape[1])
+        outputs = self.model(tokens, tokens.shape[1])
+        stacked_outputs = torch.stack(outputs, dim=-1)
+        return {"logits": stacked_outputs}
 
     def handle_loss(self, loss: LossOutput, phase: str) -> torch.Tensor:
         """

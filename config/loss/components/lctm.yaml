@@ -1,15 +1,13 @@
-- _target_: loss.components.LLMClassificationLoss
+- _target_: loss.components.CTMLoss
   name: cls_loss
   weight: 1.0
   pred_key: logits
   ref_key: tokens
-  base_loss:
-    _target_: torch.nn.CrossEntropyLoss
 
 - _target_: loss.components.TokenEntropy
   name: token_entropy
   weight: 0.0
-  logits_key: logits
+  logit_key: logits
 
 - _target_: loss.components.LLMPercentCorrect
   name: percent_correct

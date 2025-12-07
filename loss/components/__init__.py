@@ -1,5 +1,5 @@
 from .base import LossComponent
-from .llm import LLMClassificationLoss, LLMPercentCorrect, TokenEntropy
+from .llm import LLMClassificationLoss, LLMPercentCorrect, TokenEntropy, CTMLoss
 from .trdlm import (
     BasicClassificationLoss,
     BasicClassificationLossT,

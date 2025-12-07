@@ -1,9 +1,11 @@
 import hydra
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 import torch
 
 from models.modules.base import load_inner_model_state_dict
 from utils.learning import get_trainer
+
+OmegaConf.register_new_resolver("sum", lambda *args: sum(args))
 
 
 @hydra.main(version_base=None, config_path="../config", config_name="dllm")

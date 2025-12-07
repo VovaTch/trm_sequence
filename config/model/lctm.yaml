@@ -11,7 +11,7 @@ vocab_size: 65
 # Synapse
 synapse:
   _target_: models.models.ctm_components.SwigLU
-  input_dim: ${model.model_width + model.input_width}
+  input_dim: ${sum:${model.model_width},${model.input_width}}
   hidden_dim: 1024
   output_dim: ${model.model_width}
 
