@@ -63,8 +63,8 @@ class AutoRegressorModule(BaseLightningModule):
         """
         for name in loss.individual:
             log_name = f"{phase}/{name.replace('_', ' ')}"
-            self.log(log_name, loss.individual[name])
-        self.log(f"{phase}/total loss", loss.total, prog_bar=True)
+            self.log(log_name, loss.individual[name], sync_dist=True)
+        self.log(f"{phase}/total loss", loss.total, prog_bar=True, sync_dist=True)
         return loss.total
 
     def step(self, batch: dict[str, Any], phase: str) -> torch.Tensor | None:
@@ -88,3 +88,18 @@ class AutoRegressorModule(BaseLightningModule):
     def on_validation_epoch_start(self) -> None:
         if self._val_count % self._val_interval == 0:
             pass  # TODO: generate text
+
+    def generate_next_tokens(
+        self, input_seq: torch.Tensor, temperature: float = 0.7, top_k: int = 0
+    ) -> torch.Tensor:
+        if temperature < 0:
+            raise ValueError(f"Temperature must be non negative, got {temperature}")
+        outputs = self.model(input_seq, 1)  # Expected BS x 1 x C
+        if top_k > 0:
+            values, _ = torch.topk(outputs, min(top_k, outputs.shape[-1]), dim=2)
+            kth_value = values[:, -1].unsqueeze(-1)
+            outputs = torch.where(outputs < kth_value, -float("inf"), outputs)
+        probs = torch.softmax(outputs / (temperature + 1e-8), dim=2)
+        dist = torch.distributions.Categorical(probs)
+        sampled_tokens = dist.sample()
+        return sampled_tokens
