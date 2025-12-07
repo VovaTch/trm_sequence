@@ -81,8 +81,7 @@ class AutoRegressorModule(BaseLightningModule):
         output = self.forward(batch)
         if self.loss_aggregator is None:
             return None
-        targets = {"class": batch["target"]}
-        loss = self.loss_aggregator(output, targets)
+        loss = self.loss_aggregator(output, batch)
         loss_total = self.handle_loss(loss, phase)
         return loss_total
 

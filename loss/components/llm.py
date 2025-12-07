@@ -56,8 +56,8 @@ class TokenEntropy(LossComponent):
     def __call__(
         self, pred: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
     ) -> torch.Tensor:
-        probs = F.softmax(pred[self.logit_key], dim=-1)
-        return -torch.sum(probs * torch.log(probs + 1e-8), dim=-1).mean()
+        probs = F.softmax(pred[self.logit_key], dim=2)
+        return -torch.sum(probs * torch.log(probs + 1e-8), dim=2).mean()
 
 
 @dataclass
@@ -82,9 +82,13 @@ class LLMPercentCorrect(LossComponent):
     def __call__(
         self, pred: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
     ) -> torch.Tensor:
-        logits = pred[self.pred_key][:, :-1, :]
+        logits = pred[self.pred_key][:, :-1, ...]
         target_indices = target[self.ref_key][..., 1:]
-        return torch.mean((torch.argmax(logits, dim=-1) == target_indices).float())
+        if logits.dim() == 4:
+            target_indices = torch.repeat_interleave(
+                target_indices.unsqueeze(-1), logits.shape[-1], -1
+            )
+        return torch.mean((torch.argmax(logits, dim=2) == target_indices).float())
 
 
 @dataclass
