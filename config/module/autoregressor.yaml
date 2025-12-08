@@ -5,3 +5,4 @@ loss_aggregator: ${loss.aggregator}
 val_interval: 16
 optimizer_cfg: ${optimizer}
 scheduler_cfg: ${scheduler}
+tokenizer: ${data.train_dataset.tokenizer}

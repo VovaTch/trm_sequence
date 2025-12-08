@@ -1,5 +1,6 @@
 from typing import Any, Protocol, Sequence
 
+from lightning.pytorch.utilities.types import STEP_OUTPUT
 import torch
 import torch.nn as nn
 
@@ -38,7 +39,7 @@ class AutoRegressorModule(BaseLightningModule):
             optimizer_cfg,
             scheduler_cfg,
         )
-        self._val_count = 0
+        self._val_count = -1
         self._val_interval = val_interval
         self._tokenizer = tokenizer
         self._eval_text = eval_text
@@ -94,10 +95,15 @@ class AutoRegressorModule(BaseLightningModule):
         loss_total = self.handle_loss(loss, phase)
         return loss_total
 
-    def on_validation_epoch_start(self) -> None:
+    def validation_step(
+        self, batch: dict[str, Any], batch_idx: int
+    ) -> STEP_OUTPUT | None:
+        return super().validation_step(batch, batch_idx)
+
+    def on_validation_start(self) -> None:
+        self._val_count += 1
         if self._val_count % self._val_interval != 0 or self._tokenizer is None:
             return
-        self._val_count += 1
 
         tokenized_text = self._tokenizer.encode(self._eval_text)
         batched_tokenized_text = [tokenized_text] * self.learning_params.batch_size
@@ -110,7 +116,9 @@ class AutoRegressorModule(BaseLightningModule):
 
         tensorboard = self.logger.experiment  # type: ignore
         for idx, decoded_text in enumerate(decoded_texts):
-            tensorboard.add_text(f"Text sample {idx + 1}", decoded_text)
+            tensorboard.add_text(
+                f"Text sample {idx + 1}", decoded_text, global_step=self._val_count
+            )
 
     @torch.inference_mode()
     def generate_next_tokens(
@@ -127,6 +135,7 @@ class AutoRegressorModule(BaseLightningModule):
         if temperature < 0:
             raise ValueError(f"Temperature must be non negative, got {temperature}")
         outputs = self.model(input_seq, 1)  # Expected BS x 1 x C
+        outputs = outputs[-1]
         if top_k > 0:
             values, _ = torch.topk(outputs, min(top_k, outputs.shape[-1]), dim=2)
             kth_value = values[:, -1].unsqueeze(-1)
