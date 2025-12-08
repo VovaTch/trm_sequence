@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Protocol, Sequence
 
 import torch
 import torch.nn as nn
@@ -6,6 +6,11 @@ import torch.nn as nn
 from loss.aggregators import LossOutput
 from utils.containers import LearningParameters
 from .base import BaseLightningModule, LossAggregator
+
+
+class ITokenizer(Protocol):
+    def encode(self, text: str) -> list[int]: ...
+    def decode(self, token_idx: Sequence[int]) -> str: ...
 
 
 class AutoRegressorModule(BaseLightningModule):
@@ -17,11 +22,13 @@ class AutoRegressorModule(BaseLightningModule):
         self,
         model: nn.Module,
         learning_params: LearningParameters,
+        tokenizer: ITokenizer | None = None,
         val_interval: int = 16,
         transforms: nn.Sequential | None = None,
         loss_aggregator: LossAggregator | None = None,
         optimizer_cfg: dict[str, Any] | None = None,
         scheduler_cfg: dict[str, Any] | None = None,
+        eval_text: str = "The meaning of life is ",
     ) -> None:
         super().__init__(
             model,
@@ -33,6 +40,8 @@ class AutoRegressorModule(BaseLightningModule):
         )
         self._val_count = 0
         self._val_interval = val_interval
+        self._tokenizer = tokenizer
+        self._eval_text = eval_text
 
     def forward(self, input: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         """
@@ -86,12 +95,35 @@ class AutoRegressorModule(BaseLightningModule):
         return loss_total
 
     def on_validation_epoch_start(self) -> None:
-        if self._val_count % self._val_interval == 0:
-            pass  # TODO: generate text
+        if self._val_count % self._val_interval != 0 or self._tokenizer is None:
+            return
+        self._val_count += 1
 
+        tokenized_text = self._tokenizer.encode(self._eval_text)
+        batched_tokenized_text = [tokenized_text] * self.learning_params.batch_size
+        batched_tokenized_text = torch.tensor(batched_tokenized_text).to(self.device)
+
+        generated_text = self.generate(batched_tokenized_text, 256)
+        decoded_texts = [
+            self._tokenizer.decode(tokens.tolist()) for tokens in generated_text
+        ]
+
+        tensorboard = self.logger.experiment  # type: ignore
+        for idx, decoded_text in enumerate(decoded_texts):
+            tensorboard.add_text(f"Text sample {idx + 1}", decoded_text)
+
+    @torch.inference_mode()
     def generate_next_tokens(
         self, input_seq: torch.Tensor, temperature: float = 0.7, top_k: int = 0
     ) -> torch.Tensor:
+        """
+        Generates a single token batch from input sequences with the same length.
+
+        Args:
+            input_seq (torch.Tensor): The input sequence.
+            temperature (float, optional): The temperature of the softmax distribution. Defaults to 0.7.
+            top_k (int, optional): The number of top tokens to consider. Defaults to 0.
+        """
         if temperature < 0:
             raise ValueError(f"Temperature must be non negative, got {temperature}")
         outputs = self.model(input_seq, 1)  # Expected BS x 1 x C
@@ -103,3 +135,30 @@ class AutoRegressorModule(BaseLightningModule):
         dist = torch.distributions.Categorical(probs)
         sampled_tokens = dist.sample()
         return sampled_tokens
+
+    @torch.inference_mode()
+    def generate(
+        self,
+        input_seq: torch.Tensor,
+        max_seq_length: int,
+        temperature: float = 0.7,
+        top_k: int = 0,
+    ) -> torch.Tensor:
+        """
+        Generate a sequence with length max_seq_length given an input sequence
+
+        Args:
+            input_seq (torch.Tensor): The input sequence.
+            max_seq_length (int): The maximum length of the generated sequence.
+            temperature (float, optional): The temperature of the softmax distribution. Defaults to 0.7.
+            top_k (int, optional): The number of top tokens to consider. Defaults to 0.
+        """
+        if input_seq.dim() == 1:
+            input_seq = input_seq.unsqueeze(0)
+        output_seq = input_seq
+        for _ in range(max_seq_length):
+            output_seq = torch.cat(
+                (output_seq, self.generate_next_tokens(output_seq, temperature, top_k)),
+                dim=1,
+            )
+        return output_seq
