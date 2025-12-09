@@ -29,6 +29,7 @@ class AutoRegressorModule(BaseLightningModule):
         optimizer_cfg: dict[str, Any] | None = None,
         scheduler_cfg: dict[str, Any] | None = None,
         eval_text: str = "The meaning of life is ",
+        certainty_threshold: float = 0.8,
     ) -> None:
         super().__init__(
             model,
@@ -42,6 +43,7 @@ class AutoRegressorModule(BaseLightningModule):
         self._val_interval = val_interval
         self._tokenizer = tokenizer
         self._eval_text = eval_text
+        self._certainty_threshold = certainty_threshold
 
     def forward(self, input: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         """
@@ -120,7 +122,7 @@ class AutoRegressorModule(BaseLightningModule):
     @torch.inference_mode()
     def generate_next_tokens(
         self, input_seq: torch.Tensor, temperature: float = 0.7, top_k: int = 0
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, list[bool]]:
         """
         Generates a single token batch from input sequences with the same length.
 
@@ -133,14 +135,23 @@ class AutoRegressorModule(BaseLightningModule):
             raise ValueError(f"Temperature must be non negative, got {temperature}")
         outputs = self.model(input_seq, 1)  # Expected BS x 1 x C
         outputs = outputs[-1]
+
+        p = torch.softmax(outputs, dim=2)  # type: ignore
+        log_p = torch.log_softmax(outputs + 1e-8, dim=2)  # type: ignore
+        entropy = torch.sum(p * log_p, dim=2).squeeze()  # size BS
+        certainty = 1 - (entropy / torch.log(torch.tensor(outputs.shape[-1])))
+        limit_reach = certainty >= self._certainty_threshold
+
         if top_k > 0:
             values, _ = torch.topk(outputs, min(top_k, outputs.shape[-1]), dim=2)
             kth_value = values[:, -1].unsqueeze(-1)
             outputs = torch.where(outputs < kth_value, -float("inf"), outputs)
-        probs = torch.softmax(outputs / (temperature + 1e-8), dim=2)
+
+        pre_softmax = outputs / (temperature + 1e-8)
+        probs = torch.softmax(pre_softmax, dim=2)
         dist = torch.distributions.Categorical(probs)
         sampled_tokens = dist.sample()
-        return sampled_tokens
+        return sampled_tokens, limit_reach.tolist()
 
     @torch.inference_mode()
     def generate(
@@ -161,10 +172,27 @@ class AutoRegressorModule(BaseLightningModule):
         """
         if input_seq.dim() == 1:
             input_seq = input_seq.unsqueeze(0)
+        certain_tokens: list[None | int] = [None] * input_seq.shape[0]
         output_seq = input_seq
         for _ in range(max_seq_length):
+            next_tokens, certainty_array = self.generate_next_tokens(
+                output_seq, temperature, top_k
+            )
+
+            for token_idx in range(input_seq.shape[0]):
+                if certain_tokens[token_idx] is None and certainty_array[token_idx]:
+                    certain_tokens[token_idx] = int(next_tokens[token_idx, ...].item())
+                elif certain_tokens is not None:
+                    next_tokens[token_idx, ...] = torch.tensor(
+                        certain_tokens[token_idx]
+                    ).to(input_seq.device)
+
             output_seq = torch.cat(
-                (output_seq, self.generate_next_tokens(output_seq, temperature, top_k)),
+                (output_seq, next_tokens),
                 dim=1,
             )
+
+            is_not_none = all([e is not None for e in certain_tokens])
+            if is_not_none:
+                break
         return output_seq
