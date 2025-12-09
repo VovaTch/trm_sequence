@@ -95,12 +95,10 @@ class AutoRegressorModule(BaseLightningModule):
         loss_total = self.handle_loss(loss, phase)
         return loss_total
 
-    def validation_step(
-        self, batch: dict[str, Any], batch_idx: int
-    ) -> STEP_OUTPUT | None:
-        return super().validation_step(batch, batch_idx)
-
     def on_validation_start(self) -> None:
+        """
+        Creates a sequence of text for eval during training purposes
+        """
         self._val_count += 1
         if self._val_count % self._val_interval != 0 or self._tokenizer is None:
             return
