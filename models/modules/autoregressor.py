@@ -1,6 +1,5 @@
 from typing import Any, Protocol, Sequence
 
-from lightning.pytorch.utilities.types import STEP_OUTPUT
 import torch
 import torch.nn as nn
 
