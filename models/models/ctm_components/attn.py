@@ -44,8 +44,16 @@ class SelfAttention(nn.Module):
         q, k = rms_norm(q), rms_norm(k)
         q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
 
+        if q.shape[2] == k.shape[2] and self._is_causal:
+            mask = torch.tril(
+                torch.ones((q.shape[2], k.shape[2]), device=q.device),
+                diagonal=-1,  # Not standard causal, need the additional diagonal masked.
+            ).to(dtype=torch.bool)
+        else:
+            mask = None
+
         # Attention
-        y = F.scaled_dot_product_attention(q, k, v, is_causal=self._is_causal)
+        y = F.scaled_dot_product_attention(q, k, v, attn_mask=mask)
         y = y.transpose(1, 2).contiguous().view(batch_size, seq_len, -1)
         y = self._proj(y)
         return y
