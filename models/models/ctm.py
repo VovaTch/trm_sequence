@@ -32,6 +32,7 @@ class LanguageContinuousThoughtMachine(nn.Module):
         neuron_level_model: nn.Module,
         output_proj: nn.Module,
         dropout: float = 0.1,
+        certainty_stop_threshold: float = 0.8,
     ) -> None:
         super().__init__()
 
@@ -42,6 +43,7 @@ class LanguageContinuousThoughtMachine(nn.Module):
         self._max_thought_step = max_thought_step
         self._dropout = dropout
         self._vocab_size = vocab_size
+        self._certainty_stop_threshold = certainty_stop_threshold
 
         self._pos_emb = RotaryEmbedding(input_width)
         self._attn = SelfAttention(
@@ -85,7 +87,9 @@ class LanguageContinuousThoughtMachine(nn.Module):
             torch.zeros(1, 1, 1, sync_dim_output)
         )
 
-    def forward(self, x: torch.Tensor, num_output_q: int = 1) -> list[torch.Tensor]:
+    def forward(
+        self, x: torch.Tensor, num_output_q: int = 1, certainty_stop: bool = False
+    ) -> list[torch.Tensor]:
         """
         Size of x: BS x L
         """
@@ -113,7 +117,9 @@ class LanguageContinuousThoughtMachine(nn.Module):
 
         z = post_activation_history[0]  # BS x Q x Z
 
-        for _ in range(self._max_thought_step):
+        certain_slots = torch.tensor([-1] * batch_size).to(x.device)
+
+        for out_idx in range(self._max_thought_step):
 
             q = self._q_projector(sync_a)  # BS x Q x C
             if q.dim() == 2:
@@ -141,6 +147,29 @@ class LanguageContinuousThoughtMachine(nn.Module):
             )  # BS x Q x SO
 
             output = self._output_proj(sync_o)  # BS x Q x O
+
+            if certainty_stop:
+                prob = F.softmax(output, dim=2)
+                log_probs = torch.log_softmax(output + 1e-8, dim=2)
+                entropy = -torch.sum(prob * log_probs, dim=2)
+                max_entropy = torch.log(torch.tensor(float(self._vocab_size)))
+                certainties = 1 - (entropy / max_entropy)
+
+                certain_tokens_mask = (
+                    certainties >= self._certainty_stop_threshold
+                ) & (certain_slots == -1)
+                certain_slots[certain_tokens_mask] = out_idx
+
+                for batch_idx in range(batch_size):
+                    if certain_slots[batch_idx] != -1:
+                        output[batch_idx, :, :] = output_history[
+                            certain_slots[batch_idx]
+                        ][batch_idx, ...]
+
+                if torch.all(certain_slots != -1):
+                    output_history.append(output)  # PAH x BS x Q x O
+                    break
+
             output_history.append(output)  # PAH x BS x Q x O
 
         return output_history

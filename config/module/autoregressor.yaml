@@ -2,7 +2,7 @@ _target_: models.modules.AutoRegressorModule
 model: ${model}
 learning_params: ${learning}
 loss_aggregator: ${loss.aggregator}
-val_interval: 16
+val_interval: 4
 optimizer_cfg: ${optimizer}
 scheduler_cfg: ${scheduler}
 tokenizer: ${data.train_dataset.tokenizer}

@@ -122,7 +122,7 @@ class AutoRegressorModule(BaseLightningModule):
     @torch.inference_mode()
     def generate_next_tokens(
         self, input_seq: torch.Tensor, temperature: float = 0.7, top_k: int = 0
-    ) -> tuple[torch.Tensor, list[bool]]:
+    ) -> torch.Tensor:
         """
         Generates a single token batch from input sequences with the same length.
 
@@ -133,14 +133,8 @@ class AutoRegressorModule(BaseLightningModule):
         """
         if temperature < 0:
             raise ValueError(f"Temperature must be non negative, got {temperature}")
-        outputs = self.model(input_seq, 1)  # Expected BS x 1 x C
+        outputs = self.model(input_seq, 1, certainty_stop=True)  # Expected BS x 1 x C
         outputs = outputs[-1]
-
-        p = torch.softmax(outputs, dim=2)  # type: ignore
-        log_p = torch.log_softmax(outputs + 1e-8, dim=2)  # type: ignore
-        entropy = torch.sum(p * log_p, dim=2).squeeze()  # size BS
-        certainty = 1 - (entropy / torch.log(torch.tensor(outputs.shape[-1])))
-        limit_reach = certainty >= self._certainty_threshold
 
         if top_k > 0:
             values, _ = torch.topk(outputs, min(top_k, outputs.shape[-1]), dim=2)
@@ -151,7 +145,7 @@ class AutoRegressorModule(BaseLightningModule):
         probs = torch.softmax(pre_softmax, dim=2)
         dist = torch.distributions.Categorical(probs)
         sampled_tokens = dist.sample()
-        return sampled_tokens, limit_reach.tolist()
+        return sampled_tokens
 
     @torch.inference_mode()
     def generate(
@@ -169,30 +163,17 @@ class AutoRegressorModule(BaseLightningModule):
             max_seq_length (int): The maximum length of the generated sequence.
             temperature (float, optional): The temperature of the softmax distribution. Defaults to 0.7.
             top_k (int, optional): The number of top tokens to consider. Defaults to 0.
+
+        Returns:
+            torch.Tensor: The generated sequence.
         """
         if input_seq.dim() == 1:
             input_seq = input_seq.unsqueeze(0)
-        certain_tokens: list[None | int] = [None] * input_seq.shape[0]
         output_seq = input_seq
-        for _ in range(max_seq_length):
-            next_tokens, certainty_array = self.generate_next_tokens(
-                output_seq, temperature, top_k
-            )
-
-            for token_idx in range(input_seq.shape[0]):
-                if certain_tokens[token_idx] is None and certainty_array[token_idx]:
-                    certain_tokens[token_idx] = int(next_tokens[token_idx, ...].item())
-                elif certain_tokens is not None:
-                    next_tokens[token_idx, ...] = torch.tensor(
-                        certain_tokens[token_idx]
-                    ).to(input_seq.device)
-
+        for _ in range(max_seq_length - len(input_seq[-1])):
+            next_tokens = self.generate_next_tokens(output_seq, temperature, top_k)
             output_seq = torch.cat(
                 (output_seq, next_tokens),
                 dim=1,
             )
-
-            is_not_none = all([e is not None for e in certain_tokens])
-            if is_not_none:
-                break
         return output_seq
