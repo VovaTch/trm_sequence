@@ -117,7 +117,10 @@ class LanguageContinuousThoughtMachine(nn.Module):
 
         z = post_activation_history[0]  # BS x Q x Z
 
-        certain_slots = torch.tensor([-1] * batch_size).to(x.device)
+        certain_slots = (
+            torch.ones((batch_size, num_output_q), dtype=torch.long, device=x.device)
+            * -1
+        )
 
         for out_idx in range(self._max_thought_step):
 
@@ -158,14 +161,15 @@ class LanguageContinuousThoughtMachine(nn.Module):
                 certain_tokens_mask = (
                     certainties >= self._certainty_stop_threshold
                 ) & (certain_slots == -1)
-                certain_slots[certain_tokens_mask] = out_idx
 
                 for batch_idx in range(batch_size):
-                    if certain_slots[batch_idx] != -1:
-                        output[batch_idx, :, :] = output_history[
-                            certain_slots[batch_idx]
-                        ][batch_idx, ...]
+                    for q_idx in range(num_output_q):
+                        if certain_slots[batch_idx][q_idx] != -1:
+                            output[batch_idx, q_idx, :] = output_history[
+                                certain_slots[batch_idx][q_idx]
+                            ][batch_idx, ...]
 
+                certain_slots[certain_tokens_mask] = out_idx
                 if torch.all(certain_slots != -1):
                     output_history.append(output)  # PAH x BS x Q x O
                     break
