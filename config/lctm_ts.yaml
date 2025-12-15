@@ -9,7 +9,7 @@ defaults:
   - module: autoregressor
 
 project_name: LightningTemplate
-model_name: dllm
+model_name: lctm
 resume: null
 
 # Optimizations
