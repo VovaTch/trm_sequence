@@ -31,6 +31,7 @@ class LanguageContinuousThoughtMachine(nn.Module):
         synapse: nn.Module,
         neuron_level_model: nn.Module,
         output_proj: nn.Module,
+        max_sync_steps: int = 0,
         dropout: float = 0.1,
         certainty_stop_threshold: float = 0.8,
     ) -> None:
@@ -44,6 +45,7 @@ class LanguageContinuousThoughtMachine(nn.Module):
         self._dropout = dropout
         self._vocab_size = vocab_size
         self._certainty_stop_threshold = certainty_stop_threshold
+        self._max_sync_steps = max_sync_steps
 
         self._pos_emb = RotaryEmbedding(input_width)
         self._attn = SelfAttention(
@@ -125,6 +127,9 @@ class LanguageContinuousThoughtMachine(nn.Module):
 
         for out_idx in range(self._max_thought_step):
 
+            if out_idx > 0:
+                sync_a = sync_a.detach()
+
             q = self._q_projector(sync_a)  # BS x Q x C
             if q.dim() == 2:
                 q = q.unsqueeze(1)
@@ -144,6 +149,7 @@ class LanguageContinuousThoughtMachine(nn.Module):
                 -1
             )  # Bs x Q x Z
             post_activation_history.append(z)  # PAH x BS x Q x Z
+            post_activation_history = post_activation_history[-self._max_sync_steps :]
 
             sync_a = self._compute_sync(
                 post_activation_history, SyncType.ACTION

@@ -2,8 +2,9 @@ _target_: models.models.ctm.LanguageContinuousThoughtMachine
 model_width: 256
 model_depth: 16
 input_width: 256
-num_attn_heads: 8
-max_thought_step: 24
+num_attn_heads: 32
+max_thought_step: 8
+max_sync_steps: 1
 sync_dim_action: 256
 sync_dim_output: 256
 vocab_size: 65

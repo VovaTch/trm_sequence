@@ -9,7 +9,7 @@ learning_rate: 0.0005
 weight_decay: 0.01
 batch_size: 16
 grad_accumulation: 1
-epochs: 500
+epochs: 1000
 beta_ema: 0.99
 gradient_clip: 0.1
 save_path: saved/
