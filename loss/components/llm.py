@@ -96,7 +96,7 @@ class CTMLoss(LossComponent):
     """
     Continuous thought machines paper loss; uses both AR classification and an uncertainty measure.
 
-    Attribtues:
+    Attributes:
         name (str): The name of the loss component.
         weight (float): The weight of the loss component.
         logit_key (str): The key for accessing the logits in the prediction dictionary.
@@ -147,4 +147,61 @@ class CTMLoss(LossComponent):
         loss = torch.gather(losses, dim=-1, index=lowest_idx.unsqueeze(-1)) / 2
         loss += torch.gather(losses, dim=-1, index=certain_idx.unsqueeze(-1)) / 2
 
+        return loss.mean()
+
+
+@dataclass
+class CTMPercentCorrect(LossComponent):
+    """
+    The percent correct version for the CTM loss; should be better than the standard one over the last tokens because
+    after fixating on an answer the correct class can diverge
+
+    Attributes:
+        name (str): The name of the loss component.
+        weight (float): The weight of the loss component.
+        logit_key (str): The key for accessing the logits in the prediction dictionary.
+        target_key (str): The key for accessing the target values in the target dictionary.
+        differentiable (bool): Whether the loss component is differentiable.
+    """
+
+    name: str
+    weight: float
+    pred_key: str
+    ref_key: str
+    differentiable: bool = False
+
+    def __call__(
+        self, pred: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
+    ) -> torch.Tensor:
+        logits = pred[self.pred_key]
+        targets = target[self.ref_key]
+        if logits.dim() == 4:
+            _, _, classes, time_steps = logits.shape  # BS x L x O x Tf
+        elif logits.dim() == 3:
+            classes = logits.shape[-1]
+            logits = logits.unsqueeze(-1)
+            time_steps = 1
+        elif logits.dim() == 2:
+            classes = logits.shape[-1]
+            logits = logits.unsqueeze(0).unsqueeze(-1)
+            targets = targets.unsqueeze(0)
+            time_steps = 1
+        else:
+            raise ValueError(f"Unsupported logits shape: {logits.shape}")
+
+        prob = F.softmax(logits, dim=2)
+        log_probs = torch.log_softmax(logits, dim=2)
+        entropy = -torch.sum(prob * log_probs, dim=2)
+        max_entropy = torch.log(torch.tensor(float(classes)))
+        certainties = 1 - (entropy / max_entropy)
+
+        targets_expanded = torch.repeat_interleave(
+            targets.unsqueeze(-1), time_steps, -1
+        )  # TODO: check if correct
+        correct_ratio = (
+            torch.argmax(logits, dim=2) == targets_expanded
+        ).float()  # BS x L x Tf
+
+        certain_idx = certainties.argmax(dim=-1)
+        loss = torch.gather(correct_ratio, dim=-1, index=certain_idx.unsqueeze(-1))
         return loss.mean()

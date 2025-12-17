@@ -86,6 +86,7 @@ class LanguageContinuousThoughtMachine(nn.Module):
         self._sync_exp_decay_output = nn.Parameter(
             torch.zeros(1, 1, 1, sync_dim_output)
         )
+        self._dropout_layer = nn.Dropout(p=dropout)
 
     def forward(
         self, x: torch.Tensor, num_output_q: int = 1, certainty_stop: bool = False
@@ -129,15 +130,17 @@ class LanguageContinuousThoughtMachine(nn.Module):
                 q = q.unsqueeze(1)
             attn_out = self._attn(q, kv, kv)  # BS x Q x C
 
-            pre_activations = self._synapse(
-                torch.cat((attn_out, z), dim=-1)
+            pre_activations = (
+                self._dropout_layer(self._synapse(torch.cat((attn_out, z), dim=-1))) + z
             )  # BS x Q x (C + Z) => BS x Q x Z
             pre_activation_history = torch.cat(
                 (pre_activation_history[..., 1:], pre_activations.unsqueeze(-1)),
                 dim=-1,
             )  # BS x Q x Z x T
 
-            z = self._neuron_level_model(pre_activation_history).squeeze(
+            z = self._neuron_level_model(
+                self._dropout_layer(pre_activation_history)
+            ).squeeze(
                 -1
             )  # Bs x Q x Z
             post_activation_history.append(z)  # PAH x BS x Q x Z
@@ -149,7 +152,7 @@ class LanguageContinuousThoughtMachine(nn.Module):
                 post_activation_history, SyncType.OUTPUT
             )  # BS x Q x SO
 
-            output = self._output_proj(sync_o)  # BS x Q x O
+            output = self._output_proj(self._dropout_layer(sync_o))  # BS x Q x O
 
             if certainty_stop:
                 prob = F.softmax(output, dim=2)

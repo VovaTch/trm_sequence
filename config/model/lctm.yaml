@@ -3,10 +3,11 @@ model_width: 256
 model_depth: 16
 input_width: 256
 num_attn_heads: 8
-max_thought_step: 16
+max_thought_step: 24
 sync_dim_action: 256
 sync_dim_output: 256
 vocab_size: 65
+dropout: 0.1
 
 # Synapse
 synapse:

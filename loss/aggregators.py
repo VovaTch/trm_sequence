@@ -97,10 +97,13 @@ class WeightedSumAggregator(LossAggregator):
         loss = LossOutput(torch.tensor(0.0), {})
 
         for component in self.components:
-            ind_loss = component(pred, target)
             if component.differentiable:
+                ind_loss = component(pred, target)
                 loss.total = loss.total.to(ind_loss.device)
                 loss.total += component.weight * ind_loss
+            else:
+                with torch.no_grad():
+                    ind_loss = component(pred, target)
             loss.individual[component.name] = ind_loss
 
         return loss

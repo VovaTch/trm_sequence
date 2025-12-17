@@ -9,7 +9,7 @@
   weight: 0.0
   logit_key: logits
 
-- _target_: loss.components.LLMPercentCorrect
+- _target_: loss.components.CTMPercentCorrect
   name: percent_correct
   weight: 0.0
   pred_key: logits
