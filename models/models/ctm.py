@@ -127,8 +127,8 @@ class LanguageContinuousThoughtMachine(nn.Module):
 
         for out_idx in range(self._max_thought_step):
 
-            if out_idx > 0:
-                sync_a = sync_a.detach()
+            # if out_idx > 0:
+            #     sync_a = sync_a.detach()
 
             q = self._q_projector(sync_a)  # BS x Q x C
             if q.dim() == 2:
