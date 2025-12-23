@@ -44,6 +44,7 @@ class AutoRegressorModule(BaseLightningModule):
         self._tokenizer = tokenizer
         self._eval_text = eval_text
         self._certainty_threshold = certainty_threshold
+        self._log_weights = False
 
     def forward(self, input: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         """
@@ -56,7 +57,8 @@ class AutoRegressorModule(BaseLightningModule):
             dict[str, torch.Tensor]: Output dictionary containing the model predictions.
         """
         tokens = input["tokens"]
-        outputs = self.model(tokens, tokens.shape[1])
+        log_step = self.global_step if self.training and hasattr(self, '_log_weights') and self._log_weights else None
+        outputs = self.model(tokens, tokens.shape[1], log_step=log_step)
         stacked_outputs = torch.stack(outputs, dim=-1)
         return {"logits": stacked_outputs}
 
@@ -89,11 +91,21 @@ class AutoRegressorModule(BaseLightningModule):
         Returns:
             torch.Tensor | None: The total loss for the step, or None if the loss aggregator is not defined.
         """
+        self._log_weights = (phase == "train" and self.global_step % 100 == 0)
+        
         output = self.forward(batch)
         if self.loss_aggregator is None:
             return None
         loss = self.loss_aggregator(output, batch)
         loss_total = self.handle_loss(loss, phase)
+        
+        if self._log_weights and hasattr(self.model, 'set_tensorboard_writer'):
+            try:
+                tensorboard = self.logger.experiment
+                self.model.set_tensorboard_writer(tensorboard)
+            except Exception:
+                pass
+        
         return loss_total
 
     def on_validation_start(self) -> None:
@@ -118,6 +130,11 @@ class AutoRegressorModule(BaseLightningModule):
             tensorboard.add_text(
                 f"Text sample {idx + 1}", decoded_text, global_step=self._val_count
             )
+        
+        if hasattr(self.model, 'set_tensorboard_writer'):
+            self.model.set_tensorboard_writer(tensorboard)
+        
+        self._log_eval_post_activations(batched_tokenized_text[:1], tensorboard)
 
     @torch.inference_mode()
     def generate_next_tokens(
@@ -177,3 +194,38 @@ class AutoRegressorModule(BaseLightningModule):
                 dim=1,
             )
         return output_seq
+    
+    def _log_eval_post_activations(self, input_seq: torch.Tensor, tensorboard) -> None:
+        """
+        Log post-activations during evaluation.
+        
+        Args:
+            input_seq: Input sequence tensor (BS x L)
+            tensorboard: Tensorboard writer
+        """
+        try:
+            with torch.no_grad():
+                result = self.model(input_seq, 1, certainty_stop=True, return_post_activations=True)
+                if isinstance(result, tuple):
+                    outputs, post_activations = result
+                    
+                    for tick_idx, post_act in enumerate(post_activations):
+                        prefix = f"eval/tick_{tick_idx}"
+                        
+                        tensorboard.add_histogram(f"{prefix}/post_activations", post_act, self._val_count)
+                        tensorboard.add_scalar(f"{prefix}/post_activations_mean", post_act.mean(), self._val_count)
+                        tensorboard.add_scalar(f"{prefix}/post_activations_std", post_act.std(), self._val_count)
+                        tensorboard.add_scalar(f"{prefix}/post_activations_max", post_act.max(), self._val_count)
+                        tensorboard.add_scalar(f"{prefix}/post_activations_min", post_act.min(), self._val_count)
+                        
+                        per_neuron_mean = post_act.mean(dim=(0, 1))
+                        per_neuron_std = post_act.std(dim=(0, 1))
+                        tensorboard.add_histogram(f"{prefix}/per_neuron_mean", per_neuron_mean, self._val_count)
+                        tensorboard.add_histogram(f"{prefix}/per_neuron_std", per_neuron_std, self._val_count)
+                    
+                    all_post_acts = torch.stack(post_activations, dim=0)
+                    tensorboard.add_histogram("eval/all_ticks/post_activations", all_post_acts, self._val_count)
+                    tensorboard.add_scalar("eval/num_ticks", len(post_activations), self._val_count)
+                    
+        except Exception as e:
+            pass

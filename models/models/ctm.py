@@ -91,8 +91,8 @@ class LanguageContinuousThoughtMachine(nn.Module):
         self._dropout_layer = nn.Dropout(p=dropout)
 
     def forward(
-        self, x: torch.Tensor, num_output_q: int = 1, certainty_stop: bool = False
-    ) -> list[torch.Tensor]:
+        self, x: torch.Tensor, num_output_q: int = 1, certainty_stop: bool = False, log_step: int | None = None, return_post_activations: bool = False
+    ) -> list[torch.Tensor] | tuple[list[torch.Tensor], list[torch.Tensor]]:
         """
         Size of x: BS x L
         """
@@ -135,9 +135,14 @@ class LanguageContinuousThoughtMachine(nn.Module):
                 q = q.unsqueeze(1)
             attn_out = self._attn(q, kv, kv)  # BS x Q x C
 
+            synapse_input = torch.cat((attn_out, z), dim=-1)
+            synapse_output = self._synapse(synapse_input)
             pre_activations = (
-                self._dropout_layer(self._synapse(torch.cat((attn_out, z), dim=-1))) + z
+                self._dropout_layer(synapse_output) + z
             )  # BS x Q x (C + Z) => BS x Q x Z
+            
+            if log_step is not None and hasattr(self, '_log_tensorboard'):
+                self._log_tensorboard(out_idx, synapse_output, pre_activations, sync_a, sync_o if out_idx > 0 else None, log_step)
             pre_activation_history = torch.cat(
                 (pre_activation_history[..., 1:], pre_activations.unsqueeze(-1)),
                 dim=-1,
@@ -185,7 +190,73 @@ class LanguageContinuousThoughtMachine(nn.Module):
 
             output_history.append(output)  # PAH x BS x Q x O
 
+        if return_post_activations:
+            return output_history, post_activation_history
         return output_history
+    
+    def _log_tensorboard(self, tick: int, synapse_output: torch.Tensor, pre_activations: torch.Tensor, 
+                         sync_a: torch.Tensor, sync_o: torch.Tensor | None, global_step: int) -> None:
+        """
+        Log weight distributions and synapse outputs to tensorboard.
+        
+        Args:
+            tick: Current internal tick
+            synapse_output: Output from synapse model
+            pre_activations: Pre-activations after synapse
+            sync_a: Action synchronization representation
+            sync_o: Output synchronization representation (None for first tick)
+            global_step: Global training step for tensorboard
+        """
+        try:
+            from torch.utils.tensorboard import SummaryWriter
+            if not hasattr(self, '_writer'):
+                return
+            
+            writer = self._writer
+            prefix = f"ctm/tick_{tick}"
+            
+            with torch.no_grad():
+                writer.add_histogram(f"{prefix}/synapse_output", synapse_output, global_step)
+                writer.add_scalar(f"{prefix}/synapse_output_mean", synapse_output.mean(), global_step)
+                writer.add_scalar(f"{prefix}/synapse_output_std", synapse_output.std(), global_step)
+                writer.add_scalar(f"{prefix}/synapse_output_max", synapse_output.max(), global_step)
+                writer.add_scalar(f"{prefix}/synapse_output_min", synapse_output.min(), global_step)
+                
+                writer.add_histogram(f"{prefix}/pre_activations", pre_activations, global_step)
+                writer.add_scalar(f"{prefix}/pre_activations_mean", pre_activations.mean(), global_step)
+                writer.add_scalar(f"{prefix}/pre_activations_std", pre_activations.std(), global_step)
+                
+                writer.add_histogram(f"{prefix}/sync_action", sync_a, global_step)
+                writer.add_scalar(f"{prefix}/sync_action_mean", sync_a.mean(), global_step)
+                writer.add_scalar(f"{prefix}/sync_action_std", sync_a.std(), global_step)
+                
+                if sync_o is not None:
+                    writer.add_histogram(f"{prefix}/sync_output", sync_o, global_step)
+                    writer.add_scalar(f"{prefix}/sync_output_mean", sync_o.mean(), global_step)
+                    writer.add_scalar(f"{prefix}/sync_output_std", sync_o.std(), global_step)
+                
+                if tick == 0:
+                    for name, param in self._synapse.named_parameters():
+                        if param.requires_grad:
+                            writer.add_histogram(f"ctm/weights/synapse/{name}", param, global_step)
+                            if param.grad is not None:
+                                writer.add_histogram(f"ctm/gradients/synapse/{name}", param.grad, global_step)
+                    
+                    for name, param in self._neuron_level_model.named_parameters():
+                        if param.requires_grad:
+                            writer.add_histogram(f"ctm/weights/neuron_model/{name}", param, global_step)
+                            if param.grad is not None:
+                                writer.add_histogram(f"ctm/gradients/neuron_model/{name}", param.grad, global_step)
+                    
+                    writer.add_histogram("ctm/weights/sync_decay_action", self._sync_exp_decay_action, global_step)
+                    writer.add_histogram("ctm/weights/sync_decay_output", self._sync_exp_decay_output, global_step)
+                    
+        except Exception as e:
+            pass
+    
+    def set_tensorboard_writer(self, writer) -> None:
+        """Set the tensorboard writer for logging."""
+        self._writer = writer
 
     def _compute_sync(
         self, post_activation_history: list[torch.Tensor], sync_type: SyncType
