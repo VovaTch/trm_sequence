@@ -1,4 +1,5 @@
 from enum import Enum, auto
+import warnings
 
 import torch
 import torch.nn as nn
@@ -32,6 +33,7 @@ class LanguageContinuousThoughtMachine(nn.Module):
         neuron_level_model: nn.Module,
         output_proj: nn.Module,
         max_sync_steps: int = 0,
+        recursive_gradient_cut: bool = False,
         dropout: float = 0.1,
         certainty_stop_threshold: float = 0.8,
     ) -> None:
@@ -46,6 +48,7 @@ class LanguageContinuousThoughtMachine(nn.Module):
         self._vocab_size = vocab_size
         self._certainty_stop_threshold = certainty_stop_threshold
         self._max_sync_steps = max_sync_steps
+        self._recursive_gradient_cut = recursive_gradient_cut
 
         self._pos_emb = RotaryEmbedding(input_width)
         self._attn = SelfAttention(
@@ -91,7 +94,12 @@ class LanguageContinuousThoughtMachine(nn.Module):
         self._dropout_layer = nn.Dropout(p=dropout)
 
     def forward(
-        self, x: torch.Tensor, num_output_q: int = 1, certainty_stop: bool = False, log_step: int | None = None, return_post_activations: bool = False
+        self,
+        x: torch.Tensor,
+        num_output_q: int = 1,
+        certainty_stop: bool = False,
+        log_step: int | None = None,
+        return_post_activations: bool = False,
     ) -> list[torch.Tensor] | tuple[list[torch.Tensor], list[torch.Tensor]]:
         """
         Size of x: BS x L
@@ -117,6 +125,7 @@ class LanguageContinuousThoughtMachine(nn.Module):
         sync_a = self._compute_sync(
             post_activation_history, SyncType.ACTION
         )  # BS x Q x SA
+        sync_o = None
 
         z = post_activation_history[0]  # BS x Q x Z
 
@@ -127,7 +136,7 @@ class LanguageContinuousThoughtMachine(nn.Module):
 
         for out_idx in range(self._max_thought_step):
 
-            if out_idx > 0:
+            if out_idx > 0 and self._recursive_gradient_cut:
                 sync_a = sync_a.detach()
 
             q = self._q_projector(sync_a)  # BS x Q x C
@@ -140,9 +149,16 @@ class LanguageContinuousThoughtMachine(nn.Module):
             pre_activations = (
                 self._dropout_layer(synapse_output) + z
             )  # BS x Q x (C + Z) => BS x Q x Z
-            
-            if log_step is not None and hasattr(self, '_log_tensorboard'):
-                self._log_tensorboard(out_idx, synapse_output, pre_activations, sync_a, sync_o if out_idx > 0 else None, log_step)
+
+            if log_step is not None and hasattr(self, "_log_tensorboard"):
+                self._log_tensorboard(
+                    out_idx,
+                    synapse_output,
+                    pre_activations,
+                    sync_a,
+                    sync_o if out_idx > 0 else None,
+                    log_step,
+                )
             pre_activation_history = torch.cat(
                 (pre_activation_history[..., 1:], pre_activations.unsqueeze(-1)),
                 dim=-1,
@@ -193,12 +209,19 @@ class LanguageContinuousThoughtMachine(nn.Module):
         if return_post_activations:
             return output_history, post_activation_history
         return output_history
-    
-    def _log_tensorboard(self, tick: int, synapse_output: torch.Tensor, pre_activations: torch.Tensor, 
-                         sync_a: torch.Tensor, sync_o: torch.Tensor | None, global_step: int) -> None:
+
+    def _log_tensorboard(
+        self,
+        tick: int,
+        synapse_output: torch.Tensor,
+        pre_activations: torch.Tensor,
+        sync_a: torch.Tensor,
+        sync_o: torch.Tensor | None,
+        global_step: int,
+    ) -> None:
         """
         Log weight distributions and synapse outputs to tensorboard.
-        
+
         Args:
             tick: Current internal tick
             synapse_output: Output from synapse model
@@ -209,51 +232,98 @@ class LanguageContinuousThoughtMachine(nn.Module):
         """
         try:
             from torch.utils.tensorboard import SummaryWriter
-            if not hasattr(self, '_writer'):
+
+            if not hasattr(self, "_writer"):
                 return
-            
+
             writer = self._writer
             prefix = f"ctm/tick_{tick}"
-            
+
             with torch.no_grad():
-                writer.add_histogram(f"{prefix}/synapse_output", synapse_output, global_step)
-                writer.add_scalar(f"{prefix}/synapse_output_mean", synapse_output.mean(), global_step)
-                writer.add_scalar(f"{prefix}/synapse_output_std", synapse_output.std(), global_step)
-                writer.add_scalar(f"{prefix}/synapse_output_max", synapse_output.max(), global_step)
-                writer.add_scalar(f"{prefix}/synapse_output_min", synapse_output.min(), global_step)
-                
-                writer.add_histogram(f"{prefix}/pre_activations", pre_activations, global_step)
-                writer.add_scalar(f"{prefix}/pre_activations_mean", pre_activations.mean(), global_step)
-                writer.add_scalar(f"{prefix}/pre_activations_std", pre_activations.std(), global_step)
-                
+                writer.add_histogram(
+                    f"{prefix}/synapse_output", synapse_output, global_step
+                )
+                writer.add_scalar(
+                    f"{prefix}/synapse_output_mean", synapse_output.mean(), global_step
+                )
+                writer.add_scalar(
+                    f"{prefix}/synapse_output_std", synapse_output.std(), global_step
+                )
+                writer.add_scalar(
+                    f"{prefix}/synapse_output_max", synapse_output.max(), global_step
+                )
+                writer.add_scalar(
+                    f"{prefix}/synapse_output_min", synapse_output.min(), global_step
+                )
+
+                writer.add_histogram(
+                    f"{prefix}/pre_activations", pre_activations, global_step
+                )
+                writer.add_scalar(
+                    f"{prefix}/pre_activations_mean",
+                    pre_activations.mean(),
+                    global_step,
+                )
+                writer.add_scalar(
+                    f"{prefix}/pre_activations_std", pre_activations.std(), global_step
+                )
+
                 writer.add_histogram(f"{prefix}/sync_action", sync_a, global_step)
-                writer.add_scalar(f"{prefix}/sync_action_mean", sync_a.mean(), global_step)
-                writer.add_scalar(f"{prefix}/sync_action_std", sync_a.std(), global_step)
-                
+                writer.add_scalar(
+                    f"{prefix}/sync_action_mean", sync_a.mean(), global_step
+                )
+                writer.add_scalar(
+                    f"{prefix}/sync_action_std", sync_a.std(), global_step
+                )
+
                 if sync_o is not None:
                     writer.add_histogram(f"{prefix}/sync_output", sync_o, global_step)
-                    writer.add_scalar(f"{prefix}/sync_output_mean", sync_o.mean(), global_step)
-                    writer.add_scalar(f"{prefix}/sync_output_std", sync_o.std(), global_step)
-                
+                    writer.add_scalar(
+                        f"{prefix}/sync_output_mean", sync_o.mean(), global_step
+                    )
+                    writer.add_scalar(
+                        f"{prefix}/sync_output_std", sync_o.std(), global_step
+                    )
+
                 if tick == 0:
                     for name, param in self._synapse.named_parameters():
                         if param.requires_grad:
-                            writer.add_histogram(f"ctm/weights/synapse/{name}", param, global_step)
+                            writer.add_histogram(
+                                f"ctm/weights/synapse/{name}", param, global_step
+                            )
                             if param.grad is not None:
-                                writer.add_histogram(f"ctm/gradients/synapse/{name}", param.grad, global_step)
-                    
+                                writer.add_histogram(
+                                    f"ctm/gradients/synapse/{name}",
+                                    param.grad,
+                                    global_step,
+                                )
+
                     for name, param in self._neuron_level_model.named_parameters():
                         if param.requires_grad:
-                            writer.add_histogram(f"ctm/weights/neuron_model/{name}", param, global_step)
+                            writer.add_histogram(
+                                f"ctm/weights/neuron_model/{name}", param, global_step
+                            )
                             if param.grad is not None:
-                                writer.add_histogram(f"ctm/gradients/neuron_model/{name}", param.grad, global_step)
-                    
-                    writer.add_histogram("ctm/weights/sync_decay_action", self._sync_exp_decay_action, global_step)
-                    writer.add_histogram("ctm/weights/sync_decay_output", self._sync_exp_decay_output, global_step)
-                    
+                                writer.add_histogram(
+                                    f"ctm/gradients/neuron_model/{name}",
+                                    param.grad,
+                                    global_step,
+                                )
+
+                    writer.add_histogram(
+                        "ctm/weights/sync_decay_action",
+                        self._sync_exp_decay_action,
+                        global_step,
+                    )
+                    writer.add_histogram(
+                        "ctm/weights/sync_decay_output",
+                        self._sync_exp_decay_output,
+                        global_step,
+                    )
+
         except Exception as e:
-            pass
-    
+            warnings.warn(f"Tensorboard logging failed: {e}")
+
     def set_tensorboard_writer(self, writer) -> None:
         """Set the tensorboard writer for logging."""
         self._writer = writer
