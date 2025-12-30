@@ -1,0 +1,16 @@
+- _target_: loss.components.LLMClassificationLoss
+  name: cls_loss
+  weight: 1.0
+  pred_key: logits
+  ref_key: tokens
+
+- _target_: loss.components.TokenEntropy
+  name: token_entropy
+  weight: 0.0
+  logit_key: logits
+
+- _target_: loss.components.LLMPercentCorrect
+  name: percent_correct
+  weight: 0.0
+  pred_key: logits
+  ref_key: tokens

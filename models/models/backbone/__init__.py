@@ -6,3 +6,4 @@ from .dllm_trm import (
     LinearQOutputHead,
     DiffusionSumTransformerTRM,
 )
+from .ar_trm import ARTransformerTRM

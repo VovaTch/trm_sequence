@@ -17,7 +17,7 @@ class TokenGenerationOutput(TypedDict):
     latent: torch.Tensor
 
 
-class LanguageTRMModule(BaseLightningModule):
+class ARLanguageTRMModule(BaseLightningModule):
     """
     Lightning module for the MNIST classifier, extends the BaseLightningModule class.
     """
