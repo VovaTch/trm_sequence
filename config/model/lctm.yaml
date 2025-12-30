@@ -8,7 +8,8 @@ max_sync_steps: 16
 sync_dim_action: 64
 sync_dim_output: 64
 vocab_size: 65
-dropout: 0.00
+recursive_gradient_cut: False
+dropout: 0.0
 
 # Synapse
 synapse:
