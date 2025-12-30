@@ -231,7 +231,6 @@ class LanguageContinuousThoughtMachine(nn.Module):
             global_step: Global training step for tensorboard
         """
         try:
-            from torch.utils.tensorboard import SummaryWriter
 
             if not hasattr(self, "_writer"):
                 return

@@ -14,4 +14,4 @@ resume: null
 
 # Optimizations
 use_torch_compile: False
-seq_length: 256
+seq_length: 1024
