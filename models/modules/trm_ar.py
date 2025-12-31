@@ -8,7 +8,6 @@ from models.models.trm import TinyRecursiveModel
 from models.modules.autoregressor import ITokenizer
 from models.modules.base import BaseLightningModule
 from utils.containers import LearningParameters
-from utils.sample_schedulers.base import SampleScheduler
 
 
 class TokenGenerationOutput(TypedDict):
@@ -150,7 +149,7 @@ class ARLanguageTRMModule(BaseLightningModule):
             torch.Tensor: The total loss.
         """
         for name in loss.individual:
-            log_name = f"{phase} {name.replace('_', ' ')}"
+            log_name = f"{phase}/{name.replace('_', ' ')}"
             self.log(
                 log_name,
                 loss.individual[name],
@@ -158,7 +157,7 @@ class ARLanguageTRMModule(BaseLightningModule):
                 sync_dist=True,
             )
         self.log(
-            f"{phase} total loss",
+            f"{phase}/total loss",
             loss.total,
             prog_bar=True,
             batch_size=self.learning_params.batch_size,
