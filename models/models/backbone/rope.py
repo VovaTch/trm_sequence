@@ -24,10 +24,16 @@ class RotaryEmbedding(nn.Module):
         """
         Forward method for RoPE embeddings; offset is unused
         """
-        _, seq_len, _ = x.shape  # Assuming BxSxD dims
 
-        cos = self.cached_cos[:seq_len, :]  # type: ignore
-        sin = self.cached_sin[:seq_len, :]  # type: ignore
+        seq_len = x.shape[1]  # Assuming BxSxD dims
+
+        if x.dim() == 3:
+            cos = self.cached_cos[:seq_len, :]  # type: ignore
+            sin = self.cached_sin[:seq_len, :]  # type: ignore
+        elif x.dim() == 4:
+            # Handle batch_size x num_heads x seq_len x dim case
+            cos = self.cached_cos[None, :seq_len, None, :]  # type: ignore
+            sin = self.cached_sin[None, :seq_len, None, :]  # type: ignore
 
         return (x * cos) + (self._rotate_half(x) * sin)
 

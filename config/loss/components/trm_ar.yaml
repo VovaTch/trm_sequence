@@ -3,6 +3,8 @@
   weight: 1.0
   pred_key: logits
   ref_key: tokens
+  base_loss:
+    _target_: torch.nn.CrossEntropyLoss
 
 - _target_: loss.components.TokenEntropy
   name: token_entropy

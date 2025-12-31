@@ -26,7 +26,6 @@ class ARLanguageTRMModule(BaseLightningModule):
         self,
         model: TinyRecursiveModel,
         learning_params: LearningParameters,
-        sample_scheduler: SampleScheduler,
         supervision_steps: int = 4,
         gradient_clip: float = 0.1,
         tokenizer: ITokenizer | None = None,
@@ -59,7 +58,6 @@ class ARLanguageTRMModule(BaseLightningModule):
         self.automatic_optimization = False
         self._supervision_steps = supervision_steps
         self.model = model
-        self._sample_scheduler = sample_scheduler
         self._core_hidden_dim = model.core.hidden_dim
         self._gradient_clip = gradient_clip
         self._val_interval = val_interval
@@ -195,12 +193,22 @@ class ARLanguageTRMModule(BaseLightningModule):
                 (input_seq.shape[0], input_seq.shape[1], 1)
             ).to(input_seq.device)
             y = y_init
+        elif input_seq.shape[1] != y.shape[1]:
+            y_init = self.model.core.y_init.repeat(
+                (input_seq.shape[0], input_seq.shape[1] - y.shape[1], 1)
+            )
+            y = torch.cat((y, y_init), dim=1)
 
         if z is None:
             z_init = self.model.core.z_init.repeat(
                 (input_seq.shape[0], input_seq.shape[1], 1)
             ).to(input_seq.device)
             z = z_init
+        elif input_seq.shape[1] != z.shape[1]:
+            z_init = self.model.core.z_init.repeat(
+                (input_seq.shape[0], input_seq.shape[1] - z.shape[1], 1)
+            )
+            z = torch.cat((z, z_init), dim=1)
 
         outputs = None
         for _ in range(self._supervision_steps):
@@ -224,7 +232,7 @@ class ARLanguageTRMModule(BaseLightningModule):
         probs = torch.softmax(pre_softmax, dim=2)
         dist = torch.distributions.Categorical(probs)
         sampled_tokens = dist.sample()
-        return sampled_tokens, y, z
+        return sampled_tokens[:, -1:], y, z
 
     @torch.inference_mode()
     def generate(

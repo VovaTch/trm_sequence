@@ -72,12 +72,8 @@ class FullSelfAttention(nn.Module):
         self.c_v = nn.Linear(self.n_embd, self.n_kv_head * self.head_dim, bias=False)
         self.c_proj = nn.Linear(self.n_embd, self.n_embd, bias=False)
 
-        self._rot_embedding_q = RotaryEmbedding(
-            self.n_head * self.head_dim, max_seq_len
-        )
-        self._rot_embedding_k = RotaryEmbedding(
-            self.n_kv_head * self.head_dim, max_seq_len
-        )
+        self._rot_embedding_q = RotaryEmbedding(self.head_dim, max_seq_len)
+        self._rot_embedding_k = RotaryEmbedding(self.head_dim, max_seq_len)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, T, _ = x.size()
@@ -195,8 +191,8 @@ class ARTransformerTRM(Core):
         self._seq_delimiter = seq_delimiter
         self._vocab_size = vocab_size
 
-        self._transformer_encoder = nn.ModuleList(
-            [
+        self._transformer_encoder = nn.Sequential(
+            *[
                 Block(
                     hidden_dim=hidden_dim,
                     num_heads=num_heads,
@@ -226,23 +222,16 @@ class ARTransformerTRM(Core):
 
         if x is not None:
 
-            transformer_input = torch.cat((x, y, z), dim=1)
-            transformer_output = self._transformer_encoder(transformer_input)
-            _, y_out, z_out = torch.split(
-                transformer_output, [x.shape[1], y.shape[1], z.shape[1]], dim=1
-            )
+            input_sum = x + y + z
 
         else:
 
-            transformer_input = torch.cat((y, z), dim=1)
-            transformer_output = self._transformer_encoder(transformer_input)
-            y_out, z_out = torch.split(
-                transformer_output, [y.shape[1], z.shape[1]], dim=1
-            )
+            input_sum = y + z
 
-        z_out = rms_norm(z_out, 1e-6)
+        transformer_output = self._transformer_encoder(input_sum)
+        output = rms_norm(transformer_output, 1e-6)
 
-        return y_out, z_out
+        return output, output
 
     @property
     def hidden_dim(self) -> int:

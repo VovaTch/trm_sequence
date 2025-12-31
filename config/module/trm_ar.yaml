@@ -1,12 +1,12 @@
 defaults:
   - _self_
 
-_target_: models.modules.trm_diffusion.ARLanguageTRMModule
+_target_: models.modules.ARLanguageTRMModule
 model: ${model}
-latent_len: 1024
 supervision_steps: 16
 val_interval: 16
 learning_params: ${learning}
 loss_aggregator: ${loss.aggregator}
 optimizer_cfg: ${optimizer}
 scheduler_cfg: ${scheduler}
+tokenizer: ${data.train_dataset.tokenizer}
