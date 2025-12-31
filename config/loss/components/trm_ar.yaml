@@ -16,3 +16,9 @@
   weight: 0.0
   pred_key: logits
   ref_key: tokens
+
+- _target_: loss.components.HaltingCrossEntropyAR
+  name: trm_cutoff_loss
+  weight: 1.0
+  base_loss:
+    _target_: torch.nn.BCEWithLogitsLoss

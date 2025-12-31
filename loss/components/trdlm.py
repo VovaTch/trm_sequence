@@ -131,6 +131,50 @@ class HaltingCrossEntropy(LossComponent):
 
 
 @dataclass
+class HaltingCrossEntropyAR(LossComponent):
+    """
+    Cross entropy loss for computing the halting probability of the TRM.
+
+    Attributes:
+        name (str): The name of the loss component.
+        weight (float): The weight of the loss component.
+        base_loss (nn.Module): The base loss function.
+        differentiable (bool, optional): Whether the loss is differentiable. Defaults to True.
+
+    Returns:
+        torch.Tensor: The computed loss
+    """
+
+    name: str
+    weight: float
+    base_loss: nn.Module
+    differentiable: bool = True
+    pred_stop_key: str = "stop"
+    pred_logits_key: str = "logits"
+    ref_key: str = "tokens"
+
+    def __call__(
+        self, pred: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
+    ) -> torch.Tensor:
+        prediction = pred[self.pred_stop_key]
+        pred_logits = pred[self.pred_logits_key][:, :-1, :]
+
+        target_tokens = target[self.ref_key]
+        target_halting_col = []
+        for idx in range(pred_logits.shape[0]):
+            target_halting_ind = torch.all(
+                torch.argmax(pred_logits[idx], dim=-1) == target_tokens[idx][1:]
+            )
+            target_halting_col.append(target_halting_ind)
+        target_halting = torch.stack(target_halting_col)
+
+        return self.base_loss(
+            prediction.squeeze(),
+            target_halting.float().squeeze(),
+        )
+
+
+@dataclass
 class PercentCorrect(LossComponent):
     """
     Percent correct metric for classification tasks.
