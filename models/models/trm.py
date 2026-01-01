@@ -105,3 +105,95 @@ class TinyRecursiveModel(nn.Module):
         """
         _, _, output, latent = self.deep_recursion(x, y, z)
         return output, latent
+
+    @torch.inference_mode()
+    def verbose_latent_recursion(
+        self, input: torch.Tensor, output: torch.Tensor, latent: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]:
+        """
+        A variation of the latent recursion method that also outputs all the intermediate latents
+
+        Args:
+            input (torch.Tensor): Input tensor
+            output (torch.Tensor): Output tensor
+            latent (torch.Tensor): Latent tensor
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]: returns the outputs, last latents, and all previous latents
+        """
+        all_latents = []
+        for _ in range(self._z_loop):
+            _, latent = self._core(input, output, latent)
+            all_latents.append(latent)
+
+        output, _ = self._core(None, output, latent)
+        return output, latent, all_latents
+
+    @torch.inference_mode()
+    def verbose_deep_recursion(
+        self, input: torch.Tensor, output: torch.Tensor, latent: torch.Tensor
+    ) -> tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        list[torch.Tensor],
+        list[torch.Tensor],
+    ]:
+        """
+        Deep recursion method of the TRM, also outputs all output and latent history
+
+        Args:
+            input (torch.Tensor): Input tensor
+            output (torch.Tensor): Output tensor
+            latent (torch.Tensor): Latent tensor
+
+        Returns:
+            tuple: Tuple containing the output tensor, latent tensor, output head tensor, stop tensor
+                output history and latent history
+        """
+        input = self._input_embedding(input)
+        total_latents = []
+        total_outputs = []
+        with torch.no_grad():
+            for _ in range(self._y_loop - 1):
+                output, latent, all_latents = self.verbose_latent_recursion(
+                    input, output, latent
+                )
+                total_latents.extend(all_latents)
+                total_outputs.append(output)
+        output, latent, all_latents = self.verbose_latent_recursion(
+            input, output, latent
+        )
+        total_latents.extend(all_latents)
+        total_outputs.append(output)
+
+        return (
+            output.detach(),
+            latent.detach(),
+            self._output_head(output),
+            self._q_head(output),
+            total_latents,
+            total_outputs,
+        )
+
+    @torch.inference_mode()
+    def verbose_forward(
+        self, x: torch.Tensor, y: torch.Tensor, z: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, list[torch.Tensor], list[torch.Tensor]]:
+        """
+        Forward method of the TRM, also outputs all output and latent history
+
+        Args:
+            x (torch.Tensor): Input tensor
+            y (torch.Tensor): Output tensor
+            z (torch.Tensor): Latent tensor
+
+        Returns:
+            tuple: Tuple containing the output tensor, latent tensor, output head tensor, stop tensor
+                latent history and output history
+        """
+        _, _, output, latent, all_latents, all_outputs = self.verbose_deep_recursion(
+            x, y, z
+        )
+        return output, latent, all_outputs, all_latents
