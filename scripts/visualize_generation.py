@@ -11,6 +11,7 @@ import matplotlib.animation as animation
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
+from tqdm import tqdm
 
 from models.modules.base import load_inner_model_state_dict
 from models.modules.trm_ar import ARLanguageTRMModule
@@ -42,7 +43,7 @@ def create_latent_video(
     tokens: torch.Tensor,
     tokenizer,
     output_path: str,
-    fps: int = 10,
+    fps: int = 50,
     batch_idx: int = 0,
 ) -> None:
     """
@@ -115,12 +116,28 @@ def create_latent_video(
         ax_output_heat.set_xlabel("Sequence Position")
         ax_output_heat.set_ylabel("Hidden Dimension")
 
-        ax_latent_norm = axes[1, 0]
-        latent_norms = np.linalg.norm(latent, axis=1)
-        ax_latent_norm.bar(range(len(latent_norms)), latent_norms, color="steelblue")
-        ax_latent_norm.set_title("Latent L2 Norm per Position")
-        ax_latent_norm.set_xlabel("Sequence Position")
-        ax_latent_norm.set_ylabel("L2 Norm")
+        ax_latent_change = axes[1, 0]
+        if frame_idx > 0:
+            prev_latent = all_frames[frame_idx - 1]["latent"]
+            if latent.shape[0] > prev_latent.shape[0]:
+                new_positions = latent.shape[0] - prev_latent.shape[0]
+                change_per_dim = np.mean(np.abs(latent[-new_positions:, :]), axis=0)
+            else:
+                latent_diff = np.abs(latent - prev_latent)
+                change_per_dim = np.mean(latent_diff, axis=0)
+            ax_latent_change.bar(
+                range(len(change_per_dim)), change_per_dim, color="coral"
+            )
+            ax_latent_change.set_title("Latent Rate of Change per Dimension")
+        else:
+            ax_latent_change.bar(
+                range(latent.shape[1]), np.zeros(latent.shape[1]), color="coral"
+            )
+            ax_latent_change.set_title(
+                "Latent Rate of Change per Dimension (N/A for first frame)"
+            )
+        ax_latent_change.set_xlabel("Hidden Dimension")
+        ax_latent_change.set_ylabel("Mean Absolute Change")
 
         ax_text = axes[1, 1]
         ax_text.axis("off")
@@ -143,15 +160,16 @@ def create_latent_video(
         fig.tight_layout()
         return []
 
-    anim = animation.FuncAnimation(
-        fig, update, frames=len(all_frames), interval=1000 // fps, blit=False
-    )
-
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     writer = animation.FFMpegWriter(fps=fps, metadata={"title": "TRM Generation"})
-    anim.save(str(output_path), writer=writer)
+
+    with writer.saving(fig, str(output_path), dpi=100):
+        for frame_idx in tqdm(range(len(all_frames)), desc="Generating video"):
+            update(frame_idx)
+            writer.grab_frame()
+
     print(f"Video saved to {output_path}")
     plt.close(fig)
 
@@ -197,7 +215,7 @@ def main():
         help="Output video path",
     )
     parser.add_argument(
-        "--fps", type=int, default=10, help="Frames per second for the video"
+        "--fps", type=int, default=50, help="Frames per second for the video"
     )
     parser.add_argument(
         "--device",
