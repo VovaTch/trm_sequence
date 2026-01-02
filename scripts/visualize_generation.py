@@ -120,24 +120,31 @@ def create_latent_video(
         if frame_idx > 0:
             prev_latent = all_frames[frame_idx - 1]["latent"]
             if latent.shape[0] > prev_latent.shape[0]:
-                new_positions = latent.shape[0] - prev_latent.shape[0]
-                change_per_dim = np.mean(np.abs(latent[-new_positions:, :]), axis=0)
+                latent_diff = np.zeros_like(latent)
+                latent_diff[: prev_latent.shape[0], :] = np.abs(
+                    latent[: prev_latent.shape[0], :] - prev_latent
+                )
+                latent_diff[prev_latent.shape[0] :, :] = np.abs(
+                    latent[prev_latent.shape[0] :, :]
+                )
             else:
                 latent_diff = np.abs(latent - prev_latent)
-                change_per_dim = np.mean(latent_diff, axis=0)
-            ax_latent_change.bar(
-                range(len(change_per_dim)), change_per_dim, color="coral"
-            )
-            ax_latent_change.set_title("Latent Rate of Change per Dimension")
-        else:
-            ax_latent_change.bar(
-                range(latent.shape[1]), np.zeros(latent.shape[1]), color="coral"
+            ax_latent_change.imshow(
+                latent_diff.T, aspect="auto", cmap="hot", interpolation="nearest"
             )
             ax_latent_change.set_title(
-                "Latent Rate of Change per Dimension (N/A for first frame)"
+                f"Latent Rate of Change (Token {frame['token_idx']}, Step {frame['step_idx']})"
             )
-        ax_latent_change.set_xlabel("Hidden Dimension")
-        ax_latent_change.set_ylabel("Mean Absolute Change")
+        else:
+            ax_latent_change.imshow(
+                np.zeros_like(latent.T),
+                aspect="auto",
+                cmap="hot",
+                interpolation="nearest",
+            )
+            ax_latent_change.set_title("Latent Rate of Change (N/A for first frame)")
+        ax_latent_change.set_xlabel("Sequence Position")
+        ax_latent_change.set_ylabel("Hidden Dimension")
 
         ax_text = axes[1, 1]
         ax_text.axis("off")
