@@ -62,9 +62,7 @@ def create_latent_video(
     for token_idx, (token_latents, token_outputs) in enumerate(zip(latents, outputs)):
         if token_idx == 0:
             len_init_text = token_latents[0].shape[1]
-            current_tokens = tokens[batch_idx, :len_init_text].tolist()
-        else:
-            current_tokens = tokens[batch_idx, : token_idx + 1].tolist()
+        current_tokens = tokens[batch_idx, : len_init_text + token_idx].tolist()
         current_text = (
             tokenizer.decode(current_tokens) if tokenizer else str(current_tokens)
         )
