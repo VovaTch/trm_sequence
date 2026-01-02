@@ -16,6 +16,12 @@ class TokenGenerationOutput(TypedDict):
     latent: torch.Tensor
 
 
+class VerboseGenerationOutput(TypedDict):
+    tokens: torch.Tensor
+    all_latents: list[list[torch.Tensor]]
+    all_outputs: list[list[torch.Tensor]]
+
+
 class ARLanguageTRMModule(BaseLightningModule):
     """
     Lightning module for the MNIST classifier, extends the BaseLightningModule class.
@@ -224,7 +230,7 @@ class ARLanguageTRMModule(BaseLightningModule):
 
         if top_k > 0:
             values, _ = torch.topk(outputs, min(top_k, outputs.shape[-1]), dim=2)
-            kth_value = values[:, -1].unsqueeze(-1)
+            kth_value = values[:, :, -1].unsqueeze(-1)
             outputs = torch.where(outputs < kth_value, -float("inf"), outputs)
 
         pre_softmax = outputs / (temperature + 1e-8)
@@ -269,6 +275,129 @@ class ARLanguageTRMModule(BaseLightningModule):
                 dim=1,
             )
         return output_seq
+
+    @torch.inference_mode()
+    def verbose_generate_next_tokens(
+        self,
+        input_seq: torch.Tensor,
+        temperature: float = 0.7,
+        top_k: int = 0,
+        y: torch.Tensor | None = None,
+        z: torch.Tensor | None = None,
+    ) -> tuple[
+        torch.Tensor, torch.Tensor, torch.Tensor, list[torch.Tensor], list[torch.Tensor]
+    ]:
+        """
+        Generates a single token batch with verbose output (all latents and outputs).
+
+        Args:
+            input_seq (torch.Tensor): The input sequence.
+            temperature (float, optional): The temperature of the softmax distribution. Defaults to 0.7.
+            top_k (int, optional): The number of top tokens to consider. Defaults to 0.
+            y (torch.Tensor | None, optional): The intermediate output tensor. Defaults to None.
+            z (torch.Tensor | None, optional): The latent tensor. Defaults to None.
+
+        Returns:
+            tuple: sampled_tokens, y, z, all_latents, all_outputs
+        """
+        if temperature < 0:
+            raise ValueError(f"Temperature must be non negative, got {temperature}")
+
+        if y is None:
+            y_init = self.model.core.y_init.repeat(
+                (input_seq.shape[0], input_seq.shape[1], 1)
+            ).to(input_seq.device)
+            y = y_init
+        elif input_seq.shape[1] != y.shape[1]:
+            y_init = self.model.core.y_init.repeat(
+                (input_seq.shape[0], input_seq.shape[1] - y.shape[1], 1)
+            )
+            y = torch.cat((y, y_init), dim=1)
+
+        if z is None:
+            z_init = self.model.core.z_init.repeat(
+                (input_seq.shape[0], input_seq.shape[1], 1)
+            ).to(input_seq.device)
+            z = z_init
+        elif input_seq.shape[1] != z.shape[1]:
+            z_init = self.model.core.z_init.repeat(
+                (input_seq.shape[0], input_seq.shape[1] - z.shape[1], 1)
+            )
+            z = torch.cat((z, z_init), dim=1)
+
+        all_latents: list[torch.Tensor] = []
+        all_outputs: list[torch.Tensor] = []
+        outputs = None
+
+        for _ in range(self._supervision_steps):
+            y, z, y_hat, q_hat, step_latents, step_outputs = (
+                self.model.verbose_deep_recursion(input_seq, y, z)
+            )
+            all_latents.extend(step_latents)
+            all_outputs.extend(step_outputs)
+            outputs = y_hat
+            if torch.all(q_hat > 0):
+                break
+
+        assert outputs is not None
+
+        if top_k > 0:
+            values, _ = torch.topk(outputs, min(top_k, outputs.shape[-1]), dim=2)
+            kth_value = values[:, :, -1].unsqueeze(-1)
+            outputs = torch.where(outputs < kth_value, -float("inf"), outputs)
+
+        pre_softmax = outputs / (temperature + 1e-8)
+        probs = torch.softmax(pre_softmax, dim=2)
+        dist = torch.distributions.Categorical(probs)
+        sampled_tokens = dist.sample()
+        return sampled_tokens[:, -1:], y, z, all_latents, all_outputs
+
+    @torch.inference_mode()
+    def verbose_generate(
+        self,
+        input_seq: torch.Tensor,
+        max_seq_length: int,
+        temperature: float = 0.7,
+        top_k: int = 0,
+    ) -> VerboseGenerationOutput:
+        """
+        Generate a sequence with verbose output containing all latents and outputs.
+
+        Args:
+            input_seq (torch.Tensor): The input sequence.
+            max_seq_length (int): The maximum length of the generated sequence.
+            temperature (float, optional): The temperature of the softmax distribution. Defaults to 0.7.
+            top_k (int, optional): The number of top tokens to consider. Defaults to 0.
+
+        Returns:
+            VerboseGenerationOutput: Contains tokens, all_latents, all_outputs
+        """
+        if input_seq.dim() == 1:
+            input_seq = input_seq.unsqueeze(0)
+        output_seq = input_seq
+
+        y = None
+        z = None
+
+        all_latents: list[list[torch.Tensor]] = []
+        all_outputs: list[list[torch.Tensor]] = []
+
+        for _ in range(max_seq_length - len(input_seq[-1])):
+            next_tokens, y, z, step_latents, step_outputs = (
+                self.verbose_generate_next_tokens(output_seq, temperature, top_k, y, z)
+            )
+            all_latents.append(step_latents)
+            all_outputs.append(step_outputs)
+            output_seq = torch.cat(
+                (output_seq, next_tokens),
+                dim=1,
+            )
+
+        return VerboseGenerationOutput(
+            tokens=output_seq,
+            all_latents=all_latents,
+            all_outputs=all_outputs,
+        )
 
     def on_validation_start(self) -> None:
         """
