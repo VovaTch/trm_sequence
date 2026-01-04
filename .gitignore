@@ -166,3 +166,4 @@ Pipfile
 weights/
 outputs/
 trained/
+multirun/
