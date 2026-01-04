@@ -19,6 +19,6 @@
 
 - _target_: loss.components.HaltingCrossEntropyAR
   name: trm_cutoff_loss
-  weight: 1.0
+  weight: 10.0
   base_loss:
     _target_: torch.nn.BCEWithLogitsLoss

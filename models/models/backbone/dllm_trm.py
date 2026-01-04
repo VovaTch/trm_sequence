@@ -159,13 +159,15 @@ class LinearQOutputHead(nn.Module):
         self._seq_length = seq_length
 
         layers = []
+        layers.append(nn.Linear(hidden_dim, hidden_dim))
+        layers.append(nn.GELU())
+        layers.append(nn.LayerNorm(hidden_dim))
         layers.append(nn.Linear(hidden_dim, 1))
-        # layers.append(nn.Linear(seq_length, 1))
 
         self._layers = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self._layers[0](x)
+        x = self._layers(x)
         return x.view(x.shape[0], -1)
 
 
