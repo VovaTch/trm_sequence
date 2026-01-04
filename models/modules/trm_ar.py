@@ -223,7 +223,7 @@ class ARLanguageTRMModule(BaseLightningModule):
             outputs = sup_step_output["output"]
             y = sup_step_output["inter output"]
             z = sup_step_output["latent"]
-            if torch.all(sup_step_output["stop"] > 0):
+            if torch.all(sup_step_output["stop"][:, -1] > 0):
                 break
 
         assert outputs is not None
@@ -336,7 +336,7 @@ class ARLanguageTRMModule(BaseLightningModule):
             all_latents.extend(step_latents)
             all_outputs.extend(step_outputs)
             outputs = y_hat
-            if torch.all(q_hat > 0):
+            if torch.all(q_hat[:, -1] > 0):
                 break
 
         assert outputs is not None

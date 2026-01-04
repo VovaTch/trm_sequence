@@ -166,9 +166,7 @@ class LinearQOutputHead(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self._layers[0](x)
-        x = x.view(x.shape[0], -1)
-        # return self._layers[1](x)
-        return x.mean(dim=1, keepdim=True)
+        return x.view(x.shape[0], -1)
 
 
 class DiffusionSumTransformerTRM(DiffusionTransformerTRM):
