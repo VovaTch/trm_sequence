@@ -160,9 +160,9 @@ class LinearQOutputHead(nn.Module):
 
         layers = []
         layers.append(nn.Linear(hidden_dim, hidden_dim))
-        layers.append(nn.GELU())
-        layers.append(nn.LayerNorm(hidden_dim))
-        layers.append(nn.Linear(hidden_dim, 1))
+        # layers.append(nn.GELU())
+        # layers.append(nn.LayerNorm)
+        # layers.append(nn.Linear(hidden_dim, 1))
 
         self._layers = nn.Sequential(*layers)
 
