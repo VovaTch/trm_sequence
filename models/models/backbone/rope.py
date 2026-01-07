@@ -34,6 +34,8 @@ class RotaryEmbedding(nn.Module):
             # Handle batch_size x num_heads x seq_len x dim case
             cos = self.cached_cos[None, :seq_len, None, :]  # type: ignore
             sin = self.cached_sin[None, :seq_len, None, :]  # type: ignore
+        else:
+            raise ValueError(f"Unsupported input with {x.dim()} dimensions")
 
         return (x * cos) + (self._rotate_half(x) * sin)
 
