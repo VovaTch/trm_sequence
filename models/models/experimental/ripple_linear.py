@@ -8,7 +8,10 @@ from torch.jit._script import script
 
 @script
 def ripple_linear_func(
-    input: torch.Tensor, out_features: int, weight: torch.Tensor, bias: torch.Tensor
+    input: torch.Tensor,
+    out_features: int,
+    weight: torch.Tensor,
+    bias: torch.Tensor | None,
 ) -> torch.Tensor:
 
     # Register output sizes
@@ -19,17 +22,24 @@ def ripple_linear_func(
     # flatten the input
     flattened_input = input.flatten(end_dim=-2)
 
-    operation_result = (
-        torch.einsum(
+    if bias is not None:
+        operation_result = (
+            torch.einsum(
+                "io,bio->bo",
+                weight[:, :, 0],
+                torch.sin(
+                    torch.einsum("bi,io->bio", flattened_input, weight[:, :, 1])
+                    + bias[1:, :]
+                ),
+            )
+            + bias[0, :]
+        )
+    else:
+        operation_result = torch.einsum(
             "io,bio->bo",
             weight[:, :, 0],
-            torch.sin(
-                torch.einsum("bi,io->bio", flattened_input, weight[:, :, 1])
-                + bias[1:, :]
-            ),
+            torch.sin(torch.einsum("bi,io->bio", flattened_input, weight[:, :, 1])),
         )
-        + bias[0, :]
-    )
 
     return operation_result.view(output_size)
 
@@ -66,11 +76,11 @@ class RippleLinear(nn.Module):
         self.in_features = in_features
         self.out_features = out_features
         self.weight = nn.Parameter(
-            torch.empty((out_features, in_features, 2), **factory_kwargs)
+            torch.empty((in_features, out_features, 2), **factory_kwargs)
         )
         if bias:
             self.bias = nn.Parameter(
-                torch.empty((out_features, in_features + 1), **factory_kwargs)
+                torch.empty((in_features + 1, out_features), **factory_kwargs)
             )
         else:
             self.register_parameter("bias", None)

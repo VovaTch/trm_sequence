@@ -1,6 +1,6 @@
 _target_: models.models.TinyRecursiveModel
 core:
-  _target_: models.models.backbone.ARTransformerTRM
+  _target_: models.models.experimental.ARRippleTRM
   hidden_dim: 32
   num_layers: 2
   num_heads: 4

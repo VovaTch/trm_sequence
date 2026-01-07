@@ -1,0 +1,17 @@
+defaults:
+  - _self_
+  - data: dllm
+  - learning: standard
+  - optimizer: adamw_standard
+  - scheduler: one_cycle_lr
+  - loss: trm_ar
+  - model: trm_ar_ripple
+  - module: trm_ar
+
+project_name: LightningTemplate
+model_name: trm_ar_ripple
+resume: null
+
+# Optimizations
+use_torch_compile: False
+seq_length: 1024
