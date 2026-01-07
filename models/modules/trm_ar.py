@@ -191,9 +191,7 @@ class ARLanguageTRMModule(BaseLightningModule):
         if temperature < 0:
             raise ValueError(f"Temperature must be non negative, got {temperature}")
 
-        if (
-            y is None
-        ):  # FIXME: There will be an error here for seq generations larger than 1
+        if y is None:
             y_init = self.model.core.y_init.repeat(
                 (input_seq.shape[0], input_seq.shape[1], 1)
             ).to(input_seq.device)
