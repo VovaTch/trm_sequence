@@ -1,0 +1,24 @@
+_target_: models.models.TinyRecursiveModel
+core:
+  _target_: models.models.backbone.ARTransformerTRM
+  hidden_dim: 32
+  num_layers: 2
+  num_heads: 4
+  seq_delimiter: 4096
+  dropout: 0.0
+  vocab_size: 65
+z_loop: 6
+y_loop: 3
+input_embedding:
+  _target_: models.models.backbone.InputEmbedding
+  embedding_dim: ${model.core.hidden_dim}
+  vocab_size: ${model.core.vocab_size}
+  additional_emb: false
+output_head:
+  _target_: models.models.backbone.LinearOutputHead
+  hidden_dim: ${model.core.hidden_dim}
+  vocab_size: ${model.core.vocab_size}
+q_head:
+  _target_: models.models.backbone.LinearQOutputHead
+  hidden_dim: ${model.core.hidden_dim}
+  seq_length: ${seq_length}
