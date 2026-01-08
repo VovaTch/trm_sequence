@@ -1,3 +1,4 @@
+import math
 from typing import Any, TypedDict
 import torch
 import torch.nn as nn
@@ -179,6 +180,7 @@ class ARLanguageTRMModule(BaseLightningModule):
         top_k: int = 0,
         y: torch.Tensor | None = None,
         z: torch.Tensor | None = None,
+        certainty_cutoff: float = 0.9,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Generates a single token batch from input sequences with the same length.
@@ -224,6 +226,14 @@ class ARLanguageTRMModule(BaseLightningModule):
             if torch.all(sup_step_output["stop"][:, -1] > 0):
                 break
 
+            if certainty_cutoff > 0:
+                probs = torch.softmax(outputs[:, -1, :], dim=-1)
+                entropy = -torch.sum(probs * torch.log(probs + 1e-8), dim=-1)
+                max_entropy = math.log(outputs.shape[-1])
+                certainty = 1 - (entropy / max_entropy)
+                if torch.all(certainty >= certainty_cutoff):
+                    break
+
         assert outputs is not None
 
         if top_k > 0:
@@ -244,6 +254,7 @@ class ARLanguageTRMModule(BaseLightningModule):
         max_seq_length: int,
         temperature: float = 0.7,
         top_k: int = 0,
+        certainty_cutoff: float = 0.9,
     ) -> torch.Tensor:
         """
         Generate a sequence with length max_seq_length given an input sequence
@@ -266,7 +277,7 @@ class ARLanguageTRMModule(BaseLightningModule):
 
         for _ in range(max_seq_length - len(input_seq[-1])):
             next_tokens, y, z = self.generate_next_tokens(
-                output_seq, temperature, top_k, y, z
+                output_seq, temperature, top_k, y, z, certainty_cutoff=certainty_cutoff
             )
             output_seq = torch.cat(
                 (output_seq, next_tokens),
