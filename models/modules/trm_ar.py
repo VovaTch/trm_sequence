@@ -36,6 +36,7 @@ class ARLanguageTRMModule(BaseLightningModule):
         gradient_clip: float = 0.1,
         tokenizer: ITokenizer | None = None,
         val_interval: int = 16,
+        training_certainty_cutoff: float = 0.9,
         transforms: nn.Sequential | None = None,
         loss_aggregator: LossAggregator | None = None,
         eval_text: str = "The meaning of life is ",
@@ -70,6 +71,7 @@ class ARLanguageTRMModule(BaseLightningModule):
         self._tokenizer = tokenizer
         self._val_count = -1
         self._eval_text = eval_text
+        self._certainty_cutoff = training_certainty_cutoff
 
     def forward(self, input: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         """
@@ -132,6 +134,15 @@ class ARLanguageTRMModule(BaseLightningModule):
             optimizer.zero_grad()
 
             if torch.all(sup_step_output["stop"] > 0):
+                break
+
+            if self._certainty_cutoff <= 0.0:
+                continue
+            probs = torch.softmax(sup_step_output["logits"], dim=-1)
+            entropy = -torch.sum(probs * torch.log(probs + 1e-8), dim=-1)
+            max_entropy = math.log(sup_step_output["logits"].shape[-1])
+            certainty = 1 - (entropy / max_entropy)
+            if torch.all(certainty >= self._certainty_cutoff):
                 break
 
         self.log_loss(total_loss_output, phase)
