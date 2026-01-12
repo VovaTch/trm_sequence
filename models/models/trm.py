@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 
@@ -139,6 +140,7 @@ class TinyRecursiveModel(nn.Module):
         torch.Tensor,
         list[torch.Tensor],
         list[torch.Tensor],
+        float,
     ]:
         """
         Deep recursion method of the TRM, also outputs all output and latent history
@@ -168,6 +170,11 @@ class TinyRecursiveModel(nn.Module):
         total_latents.extend(all_latents)
         total_outputs.append(output)
 
+        head_outputs = self._output_head(output)
+        output_probs = head_outputs[:, -1, :].softmax(dim=-1)
+        entropy = -torch.sum(output_probs * torch.log(output_probs + 1e-10), dim=-1)
+        certainty = 1 - (entropy / math.log(output_probs.shape[-1]))
+
         return (
             output.detach(),
             latent.detach(),
@@ -175,12 +182,15 @@ class TinyRecursiveModel(nn.Module):
             self._q_head(output),
             total_latents,
             total_outputs,
+            certainty[0].item(),  # FIXME: temporary fix for single batch certainty
         )
 
     @torch.inference_mode()
     def verbose_forward(
         self, x: torch.Tensor, y: torch.Tensor, z: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, list[torch.Tensor], list[torch.Tensor]]:
+    ) -> tuple[
+        torch.Tensor, torch.Tensor, list[torch.Tensor], list[torch.Tensor], float
+    ]:
         """
         Forward method of the TRM, also outputs all output and latent history
 
@@ -193,7 +203,7 @@ class TinyRecursiveModel(nn.Module):
             tuple: Tuple containing the output tensor, latent tensor, output head tensor, stop tensor
                 latent history and output history
         """
-        _, _, output, latent, all_latents, all_outputs = self.verbose_deep_recursion(
-            x, y, z
+        _, _, output, latent, all_latents, all_outputs, certainty = (
+            self.verbose_deep_recursion(x, y, z)
         )
-        return output, latent, all_outputs, all_latents
+        return output, latent, all_outputs, all_latents, certainty

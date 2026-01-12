@@ -31,7 +31,7 @@ def load_module(
     )
 
     if checkpoint_path is not None:
-        module = load_inner_model_state_dict(module, checkpoint_path)
+        module = load_inner_model_state_dict(module, checkpoint_path)  # type: ignore
 
     module.eval()
     return module
@@ -41,6 +41,7 @@ def create_latent_video(
     latents: list[list[torch.Tensor]],
     outputs: list[list[torch.Tensor]],
     tokens: torch.Tensor,
+    certainties: list[list[float]],
     tokenizer,
     output_path: str,
     fps: int = 50,
@@ -59,6 +60,8 @@ def create_latent_video(
         batch_idx: Which batch element to visualize
     """
     all_frames = []
+
+    len_init_text = 0
 
     for token_idx, (token_latents, token_outputs) in enumerate(zip(latents, outputs)):
         if token_idx == 0:
@@ -167,8 +170,8 @@ def create_latent_video(
         fig.tight_layout()
         return []
 
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = Path(output_path)  # type: ignore
+    output_path.parent.mkdir(parents=True, exist_ok=True)  # type: ignore
 
     writer = animation.FFMpegWriter(fps=fps, metadata={"title": "TRM Generation"})
 
@@ -255,11 +258,12 @@ def main():
     generated_text = tokenizer.decode(result["tokens"][0].tolist())
     print(f"Generated text: {generated_text}")
 
-    print(f"Creating visualization video...")
+    print("Creating visualization video...")
     create_latent_video(
         latents=result["all_latents"],
         outputs=result["all_outputs"],
         tokens=result["tokens"],
+        certainties=result["all_certainties"],
         tokenizer=tokenizer,
         output_path=args.output,
         fps=args.fps,

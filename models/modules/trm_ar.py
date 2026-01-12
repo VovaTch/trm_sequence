@@ -21,6 +21,7 @@ class VerboseGenerationOutput(TypedDict):
     tokens: torch.Tensor
     all_latents: list[list[torch.Tensor]]
     all_outputs: list[list[torch.Tensor]]
+    all_certainties: list[list[float]]
 
 
 class ARLanguageTRMModule(BaseLightningModule):
@@ -304,8 +305,14 @@ class ARLanguageTRMModule(BaseLightningModule):
         top_k: int = 0,
         y: torch.Tensor | None = None,
         z: torch.Tensor | None = None,
+        certainty_cutoff: float = 0.9,
     ) -> tuple[
-        torch.Tensor, torch.Tensor, torch.Tensor, list[torch.Tensor], list[torch.Tensor]
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        list[torch.Tensor],
+        list[torch.Tensor],
+        list[float],
     ]:
         """
         Generates a single token batch with verbose output (all latents and outputs).
@@ -347,17 +354,26 @@ class ARLanguageTRMModule(BaseLightningModule):
 
         all_latents: list[torch.Tensor] = []
         all_outputs: list[torch.Tensor] = []
+        all_certainties: list[float] = []
         outputs = None
 
         for _ in range(self._supervision_steps):
-            y, z, y_hat, q_hat, step_latents, step_outputs = (
+            y, z, y_hat, q_hat, step_latents, step_outputs, certainty = (
                 self.model.verbose_deep_recursion(input_seq, y, z)
             )
             all_latents.extend(step_latents)
             all_outputs.extend(step_outputs)
+            all_certainties.append(certainty)
             outputs = y_hat
             if torch.all(q_hat[:, -1] > 0):
                 break
+            if certainty_cutoff > 0:
+                probs = torch.softmax(outputs[:, -1, :], dim=-1)
+                entropy = -torch.sum(probs * torch.log(probs + 1e-8), dim=-1)
+                max_entropy = math.log(outputs.shape[-1])
+                certainty = 1 - (entropy / max_entropy)
+                if torch.all(certainty >= certainty_cutoff):
+                    break
 
         assert outputs is not None
 
@@ -370,7 +386,7 @@ class ARLanguageTRMModule(BaseLightningModule):
         probs = torch.softmax(pre_softmax, dim=2)
         dist = torch.distributions.Categorical(probs)
         sampled_tokens = dist.sample()
-        return sampled_tokens[:, -1:], y, z, all_latents, all_outputs
+        return sampled_tokens[:, -1:], y, z, all_latents, all_outputs, all_certainties
 
     @torch.inference_mode()
     def verbose_generate(
@@ -379,6 +395,7 @@ class ARLanguageTRMModule(BaseLightningModule):
         max_seq_length: int,
         temperature: float = 0.7,
         top_k: int = 0,
+        certainty_cutoff: float = 0.9,
     ) -> VerboseGenerationOutput:
         """
         Generate a sequence with verbose output containing all latents and outputs.
@@ -401,13 +418,17 @@ class ARLanguageTRMModule(BaseLightningModule):
 
         all_latents: list[list[torch.Tensor]] = []
         all_outputs: list[list[torch.Tensor]] = []
+        all_certainties: list[list[float]] = []
 
         for _ in range(max_seq_length - len(input_seq[-1])):
-            next_tokens, y, z, step_latents, step_outputs = (
-                self.verbose_generate_next_tokens(output_seq, temperature, top_k, y, z)
+            next_tokens, y, z, step_latents, step_outputs, certainties = (
+                self.verbose_generate_next_tokens(
+                    output_seq, temperature, top_k, y, z, certainty_cutoff
+                )
             )
             all_latents.append(step_latents)
             all_outputs.append(step_outputs)
+            all_certainties.append(certainties)
             output_seq = torch.cat(
                 (output_seq, next_tokens),
                 dim=1,
@@ -417,6 +438,7 @@ class ARLanguageTRMModule(BaseLightningModule):
             tokens=output_seq,
             all_latents=all_latents,
             all_outputs=all_outputs,
+            all_certainties=all_certainties,
         )
 
     def on_validation_start(self) -> None:
