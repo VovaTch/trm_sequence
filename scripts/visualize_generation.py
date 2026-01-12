@@ -88,7 +88,12 @@ def create_latent_video(
         print("No frames to visualize!")
         return
 
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    # Collect all certainties for plotting
+    all_certainties = []
+    for token_certainties in certainties:
+        all_certainties.extend(token_certainties)
+
+    fig, axes = plt.subplots(2, 3, figsize=(20, 10))
     fig.suptitle("TRM Generation Visualization", fontsize=14)
 
     def update(frame_idx: int):
@@ -166,6 +171,36 @@ def create_latent_video(
             bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
         )
         ax_text.set_title("Generated Text So Far")
+
+        # Certainty over time plot (sliding window)
+        ax_certainty = axes[1, 2]
+        window_size = 500
+        start_idx = max(0, frame_idx - window_size + 1)
+        end_idx = frame_idx + 1
+
+        window_certainties = all_certainties[start_idx:end_idx]
+        window_indices = list(range(start_idx, end_idx))
+
+        ax_certainty.plot(
+            window_indices, window_certainties, color="blue", linewidth=1.5
+        )
+        ax_certainty.scatter(
+            [frame_idx],
+            [all_certainties[frame_idx]],
+            color="red",
+            s=100,
+            zorder=5,
+            label="Current",
+        )
+        ax_certainty.set_xlim(start_idx, max(start_idx + window_size, end_idx))
+        ax_certainty.set_ylim(0, 1.0)
+        ax_certainty.set_xlabel("Frame (Token × Step)")
+        ax_certainty.set_ylabel("Certainty")
+        ax_certainty.set_title(
+            f"Certainty Over Time (Current: {all_certainties[frame_idx]:.3f})"
+        )
+        ax_certainty.grid(True, alpha=0.3)
+        ax_certainty.legend(loc="upper right")
 
         fig.tight_layout()
         return []
