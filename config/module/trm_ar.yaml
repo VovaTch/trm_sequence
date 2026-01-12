@@ -3,7 +3,7 @@ defaults:
 
 _target_: models.modules.ARLanguageTRMModule
 model: ${model}
-supervision_steps: 128
+supervision_steps: 16
 val_interval: 16
 learning_params: ${learning}
 loss_aggregator: ${loss.aggregator}

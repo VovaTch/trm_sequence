@@ -63,7 +63,9 @@ def create_latent_video(
 
     len_init_text = 0
 
-    for token_idx, (token_latents, token_outputs) in enumerate(zip(latents, outputs)):
+    for token_idx, (token_latents, token_outputs, token_certainties) in enumerate(
+        zip(latents, outputs, certainties)
+    ):
         if token_idx == 0:
             len_init_text = token_latents[0].shape[1]
         current_tokens = tokens[batch_idx, : len_init_text + token_idx].tolist()
@@ -71,9 +73,34 @@ def create_latent_video(
             tokenizer.decode(current_tokens) if tokenizer else str(current_tokens)
         )
 
+        # Calculate frames per deep recursion cycle
+        # token_latents has frames from all deep recursion cycles
+        # token_certainties has one certainty per deep recursion cycle
+        num_certainties = len(token_certainties)
+        num_frames = len(token_latents)
+        frames_per_cycle = (
+            num_frames // num_certainties if num_certainties > 0 else num_frames
+        )
+
         for step_idx, (latent, output) in enumerate(zip(token_latents, token_outputs)):
             latent_np = latent[batch_idx].cpu().numpy()
             output_np = output[batch_idx].cpu().numpy()
+
+            # Map frame to its corresponding certainty
+            certainty_idx = (
+                min(step_idx // frames_per_cycle, num_certainties - 1)
+                if num_certainties > 0
+                else 0
+            )
+            frame_certainty = (
+                token_certainties[certainty_idx] if num_certainties > 0 else 0.0
+            )
+
+            # Compute output probabilities for the latest token
+            output_probs = torch.softmax(
+                torch.from_numpy(output_np[-1, :]), dim=-1
+            ).numpy()
+
             all_frames.append(
                 {
                     "latent": latent_np,
@@ -81,6 +108,8 @@ def create_latent_video(
                     "token_idx": token_idx,
                     "step_idx": step_idx,
                     "text": current_text,
+                    "certainty": frame_certainty,
+                    "output_probs": output_probs,
                 }
             )
 
@@ -88,10 +117,8 @@ def create_latent_video(
         print("No frames to visualize!")
         return
 
-    # Collect all certainties for plotting
-    all_certainties = []
-    for token_certainties in certainties:
-        all_certainties.extend(token_certainties)
+    # Collect all certainties aligned with frames
+    all_certainties = [frame["certainty"] for frame in all_frames]
 
     fig, axes = plt.subplots(2, 3, figsize=(20, 10))
     fig.suptitle("TRM Generation Visualization", fontsize=14)
@@ -123,6 +150,26 @@ def create_latent_video(
         )
         ax_output_heat.set_xlabel("Sequence Position")
         ax_output_heat.set_ylabel("Hidden Dimension")
+
+        # Output probabilities for latest token
+        ax_probs = axes[0, 2]
+        output_probs = frame["output_probs"]
+        top_k = 20
+        top_indices = np.argsort(output_probs)[-top_k:][::-1]
+        top_probs = output_probs[top_indices]
+        ax_probs.barh(range(top_k), top_probs, color="steelblue")
+        ax_probs.set_yticks(range(top_k))
+        if tokenizer:
+            top_labels = [
+                tokenizer.decode([idx]).replace("\n", "\\n") for idx in top_indices
+            ]
+        else:
+            top_labels = [str(idx) for idx in top_indices]
+        ax_probs.set_yticklabels(top_labels, fontsize=8)
+        ax_probs.set_xlim(0, 1)
+        ax_probs.set_xlabel("Probability")
+        ax_probs.set_title(f"Top-{top_k} Token Probabilities (Latest Position)")
+        ax_probs.invert_yaxis()
 
         ax_latent_change = axes[1, 0]
         if frame_idx > 0:
