@@ -36,6 +36,15 @@
       "module": "scripts.test",
       "console": "integratedTerminal",
       "justMyCode": true
+    },
+        {
+      "name": "Python: visualize",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "scripts.visualize_generation",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": ["--fps", "75", "--max-length", "64"]
     }
   ]
 }
