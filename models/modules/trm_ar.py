@@ -38,6 +38,7 @@ class ARLanguageTRMModule(BaseLightningModule):
         tokenizer: ITokenizer | None = None,
         val_interval: int = 16,
         training_certainty_cutoff: float = 0.9,
+        supervision_init_index: int = 0,
         transforms: nn.Sequential | None = None,
         loss_aggregator: LossAggregator | None = None,
         eval_text: str = "The meaning of life is ",
@@ -74,6 +75,12 @@ class ARLanguageTRMModule(BaseLightningModule):
         self._eval_text = eval_text
         self._certainty_cutoff = training_certainty_cutoff
 
+        if 0 > supervision_init_index or supervision_init_index >= supervision_steps:
+            raise ValueError(
+                f"Supervision init index must be in [0, {supervision_steps}), got {supervision_init_index}"
+            )
+        self._supervision_init_index = supervision_init_index
+
     def forward(self, input: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         """
         Forward pass of the language TRM.
@@ -108,15 +115,16 @@ class ARLanguageTRMModule(BaseLightningModule):
 
         total_loss_output = LossOutput(torch.zeros(1).to(batch["tokens"].device), {})
 
-        for _ in range(self._supervision_steps):
+        for idx in range(self._supervision_steps):
             sup_step_output = self.forward(
                 {"input": batch["tokens"], "inter output": y, "latent": z}
             )
-            if self.loss_aggregator is None:
-                continue
             sup_step_output["logits"] = sup_step_output["output"]
             y = sup_step_output["inter output"]
             z = sup_step_output["latent"]
+
+            if idx < self._supervision_init_index or self.loss_aggregator is None:
+                continue
 
             loss = self.loss_aggregator(sup_step_output, batch)
             total_loss_output.total += loss.total.detach() / self._supervision_steps
