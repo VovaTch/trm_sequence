@@ -127,7 +127,9 @@ class ARLanguageTRMModule(BaseLightningModule):
                 continue
 
             loss = self.loss_aggregator(sup_step_output, batch)
-            total_loss_output.total += loss.total.detach() / self._supervision_steps
+            total_loss_output.total += loss.total.detach() / (
+                self._supervision_steps - self._supervision_init_index + 1e-8
+            )
             for name in loss.individual:
                 total_loss_output.individual[name] = total_loss_output.individual.get(
                     name, 0
