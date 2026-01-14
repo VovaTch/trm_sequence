@@ -295,7 +295,7 @@ def main():
         help="Maximum sequence length to generate",
     )
     parser.add_argument(
-        "--temperature", type=float, default=0.7, help="Sampling temperature"
+        "--temperature", type=float, default=0.1, help="Sampling temperature"
     )
     parser.add_argument(
         "--top-k", type=int, default=50, help="Top-k sampling parameter"
