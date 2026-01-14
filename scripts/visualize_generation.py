@@ -132,7 +132,7 @@ def create_latent_video(
             ax.clear()
 
         ax_latent_heat = axes[0, 0]
-        im1 = ax_latent_heat.imshow(
+        _ = ax_latent_heat.imshow(
             latent.T, aspect="auto", cmap="viridis", interpolation="nearest"
         )
         ax_latent_heat.set_title(
@@ -142,7 +142,7 @@ def create_latent_video(
         ax_latent_heat.set_ylabel("Hidden Dimension")
 
         ax_output_heat = axes[0, 1]
-        im2 = ax_output_heat.imshow(
+        _ = ax_output_heat.imshow(
             output.T, aspect="auto", cmap="plasma", interpolation="nearest"
         )
         ax_output_heat.set_title(
