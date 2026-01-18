@@ -145,17 +145,17 @@ class ARLanguageTRMModule(BaseLightningModule):
             optimizer.step()
             optimizer.zero_grad()
 
-            if torch.all(sup_step_output["stop"] > 0):
-                break
+            # if torch.all(sup_step_output["stop"] > 0):
+            #     break
 
-            if self._certainty_cutoff <= 0.0:
-                continue
-            probs = torch.softmax(sup_step_output["logits"], dim=-1)
-            entropy = -torch.sum(probs * torch.log(probs + 1e-8), dim=-1)
-            max_entropy = math.log(sup_step_output["logits"].shape[-1])
-            certainty = 1 - (entropy / max_entropy)
-            if torch.all(certainty >= self._certainty_cutoff):
-                break
+            # if self._certainty_cutoff <= 0.0:
+            #     continue
+            # probs = torch.softmax(sup_step_output["logits"], dim=-1)
+            # entropy = -torch.sum(probs * torch.log(probs + 1e-8), dim=-1)
+            # max_entropy = math.log(sup_step_output["logits"].shape[-1])
+            # certainty = 1 - (entropy / max_entropy)
+            # if torch.all(certainty >= self._certainty_cutoff):
+            #     break
 
         self.log_loss(total_loss_output, phase)
 

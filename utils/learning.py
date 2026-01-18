@@ -79,7 +79,7 @@ def get_trainer(learning_parameters: LearningParameters) -> L.Trainer:
     precision = 16 if learning_parameters.amp else 32
 
     model_summary = ModelSummary(max_depth=2)
-    ddp = DDPStrategy(process_group_backend="gloo", find_unused_parameters=False)
+    ddp = DDPStrategy(process_group_backend="nccl", find_unused_parameters=False)
     trainer = L.Trainer(
         # gradient_clip_val=learning_parameters.gradient_clip,
         logger=loggers,
