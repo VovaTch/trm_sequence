@@ -16,6 +16,7 @@ class AttnBackbone(nn.Module):
         num_heads: int = 4,
         num_layers: int = 4,
         dropout: float = 0.1,
+        is_causal: bool = False,
         logger: logging.Logger = LOGGER,
     ) -> None:
         super().__init__()
@@ -26,6 +27,7 @@ class AttnBackbone(nn.Module):
         self._num_layers = num_layers
         self._dropout = dropout
         self._logger = logger
+        self._is_causal = is_causal
 
         self._input_embeddings = nn.Embedding(
             num_embeddings=vocab_size_l + vocab_size_h, embedding_dim=hidden_dim
@@ -47,6 +49,6 @@ class AttnBackbone(nn.Module):
         """
         embedded = self._input_embeddings(x)
         embedded = self._positional_emb(embedded)
-        output = self._transformer(embedded, embedded)
+        output = self._transformer(embedded, embedded, is_causal=self._is_causal)
         output = self._mlp_head(output)
         return output

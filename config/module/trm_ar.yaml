@@ -1,0 +1,13 @@
+defaults:
+  - _self_
+
+_target_: models.modules.ARLanguageTRMModule
+model: ${model}
+supervision_steps: 24
+supervision_init_index: 8
+val_interval: 16
+learning_params: ${learning}
+loss_aggregator: ${loss.aggregator}
+optimizer_cfg: ${optimizer}
+scheduler_cfg: ${scheduler}
+tokenizer: ${data.train_dataset.tokenizer}

@@ -7,3 +7,6 @@ stage:
 data: data/fineweb_karpathy
 num_files: 240
 num_workers: 4
+tokenizer:
+  _target_: models.tokenizers.rustbpe.RustBPETokenizer.from_directory
+  tokenizer_dir: data/fineweb_karpathy

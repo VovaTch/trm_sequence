@@ -128,11 +128,14 @@ class DiffusionTransformerTRM(Core):
 
 
 class InputEmbedding(nn.Module):
-    def __init__(self, embedding_dim: int, vocab_size: int) -> None:
+    def __init__(
+        self, embedding_dim: int, vocab_size: int, additional_emb: bool = True
+    ) -> None:
         super().__init__()
         self._embedding_dim = embedding_dim
         self._vocab_size = vocab_size
-        self._embedding = nn.Embedding(vocab_size + 1, embedding_dim)
+        add_emb = 1 if additional_emb else 0
+        self._embedding = nn.Embedding(vocab_size + add_emb, embedding_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self._embedding(x)
@@ -156,15 +159,16 @@ class LinearQOutputHead(nn.Module):
         self._seq_length = seq_length
 
         layers = []
+        # layers.append(nn.Linear(hidden_dim, hidden_dim))
+        # layers.append(nn.GELU())
+        # layers.append(nn.LayerNorm)
         layers.append(nn.Linear(hidden_dim, 1))
-        layers.append(nn.Linear(seq_length, 1))
 
         self._layers = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self._layers[0](x)
-        x = x.view(x.shape[0], -1)
-        return self._layers[1](x)
+        x = self._layers(x)
+        return x.view(x.shape[0], -1)
 
 
 class DiffusionSumTransformerTRM(DiffusionTransformerTRM):

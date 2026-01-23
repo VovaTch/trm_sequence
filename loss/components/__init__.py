@@ -10,6 +10,7 @@ from .trdlm import (
     BasicClassificationLoss,
     BasicClassificationLossT,
     PercentCorrect,
+    HaltingCrossEntropyAR,
     HaltingCrossEntropy,
     MaskedClassificationLoss,
     MaskedPercentCorrect,

@@ -1,7 +1,9 @@
 from dataclasses import dataclass
+import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from .base import LossComponent
 
@@ -123,6 +125,53 @@ class HaltingCrossEntropy(LossComponent):
             )
             target_halting_col.append(target_halting_ind)
         target_halting = torch.stack(target_halting_col)
+
+        return self.base_loss(
+            prediction.squeeze(),
+            target_halting.float().squeeze(),
+        )
+
+
+@dataclass
+class HaltingCrossEntropyAR(LossComponent):
+    """
+    Cross entropy loss for computing the halting probability of the TRM.
+
+    Attributes:
+        name (str): The name of the loss component.
+        weight (float): The weight of the loss component.
+        base_loss (nn.Module): The base loss function.
+        differentiable (bool, optional): Whether the loss is differentiable. Defaults to True.
+
+    Returns:
+        torch.Tensor: The computed loss
+    """
+
+    name: str
+    weight: float
+    base_loss: nn.Module
+    differentiable: bool = True
+    pred_stop_key: str = "stop"
+    pred_logits_key: str = "logits"
+    ref_key: str = "tokens"
+    min_certainty: float = 0.8
+
+    def __call__(
+        self, pred: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
+    ) -> torch.Tensor:
+        prediction = pred[self.pred_stop_key][:, :-1]
+        pred_logits = pred[self.pred_logits_key][:, :-1, :]
+
+        target_tokens = target[self.ref_key][:, 1:]
+        pred_logits_prob = F.softmax(pred_logits, dim=-1)
+        entropy = -torch.sum(
+            pred_logits_prob * torch.log(pred_logits_prob + 1e-8), dim=-1
+        )
+        max_entropy = math.log(pred_logits.shape[-1])
+        certainty = 1 - (entropy / max_entropy)
+        target_halting = (torch.argmax(pred_logits, dim=-1) == target_tokens) & (
+            certainty >= self.min_certainty
+        )
 
         return self.base_loss(
             prediction.squeeze(),
