@@ -3,7 +3,7 @@ defaults:
   - data: dllm
   - learning: standard
   - optimizer: adamw_standard
-  - scheduler: one_cycle_lr
+  - scheduler: none
   - loss: trm_ar
   - model: trm_ar
   - module: trm_ar
