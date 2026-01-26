@@ -142,6 +142,7 @@ class SnakeMLP(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.c_fc(x)
         x = F.relu(x).square()
+        x = self._snake(x)
         x = self.c_proj(x)
         return x
 
