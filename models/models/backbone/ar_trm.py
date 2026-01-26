@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from models.models.backbone.base import Core
-from models.models.experimental.snake import Snake
+from .snake import Snake
 from utils.other import rms_norm
 
 from .rope import RotaryEmbedding

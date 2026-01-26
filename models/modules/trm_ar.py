@@ -246,8 +246,8 @@ class ARLanguageTRMModule(BaseLightningModule):
             outputs = sup_step_output["output"]
             y = sup_step_output["inter output"]
             z = sup_step_output["latent"]
-            if torch.all(sup_step_output["stop"][:, -1] > 0):
-                break
+            # if torch.all(sup_step_output["stop"][:, -1] > 0):
+            #     break
 
             if certainty_cutoff > 0:
                 probs = torch.softmax(outputs[:, -1, :], dim=-1)
@@ -376,13 +376,14 @@ class ARLanguageTRMModule(BaseLightningModule):
             all_outputs.extend(step_outputs)
             all_certainties.append(certainty)
             outputs = y_hat
-            if torch.all(q_hat[:, -1] > 0):
-                break
+            # if torch.all(q_hat[:, -1] > 0): # TODO: address the Q-Hat problem
+            #     break
             if certainty_cutoff > 0:
                 probs = torch.softmax(outputs[:, -1, :], dim=-1)
                 entropy = -torch.sum(probs * torch.log(probs + 1e-8), dim=-1)
                 max_entropy = math.log(outputs.shape[-1])
                 certainty = 1 - (entropy / max_entropy)
+                print(f"{certainty=}")
                 if torch.all(certainty >= certainty_cutoff):
                     break
 
