@@ -1,11 +1,13 @@
 # TODO: KV cache
 
 from enum import Enum
+from typing import Literal
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from models.models.backbone.base import Core
+from models.models.experimental.snake import Snake
 from utils.other import rms_norm
 
 from .rope import RotaryEmbedding
@@ -123,6 +125,27 @@ class MLP(nn.Module):
         return x
 
 
+class SnakeMLP(nn.Module):
+    def __init__(self, n_embd: int, mlp_multiplier: int = 4) -> None:
+        """
+        Initializes the MLP class
+
+        Args:
+            n_embd (int): Embedding dimension
+            mlp_multiplier (int, optional): Multiplier for the number of units in the MLP. Defaults to 4.
+        """
+        super().__init__()
+        self.c_fc = nn.Linear(n_embd, mlp_multiplier * n_embd, bias=False)
+        self.c_proj = nn.Linear(mlp_multiplier * n_embd, n_embd, bias=False)
+        self._snake = Snake(mlp_multiplier * n_embd)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.c_fc(x)
+        x = F.relu(x).square()
+        x = self.c_proj(x)
+        return x
+
+
 class Block(nn.Module):
     """
     Transformer block implementation from Karpathy's Nanochat
@@ -137,6 +160,7 @@ class Block(nn.Module):
         max_seq_len: int = 2048,
         mlp_multiplier: int = 4,
         is_causal: bool = True,
+        activation_type: Literal["normal", "snake"] = "normal",
         dropout: float = 0.1,
     ) -> None:
         """
@@ -146,7 +170,15 @@ class Block(nn.Module):
         self.attn = FullSelfAttention(
             num_heads, num_kv_heads, hidden_dim, layer_idx, max_seq_len, is_causal
         )
-        self.mlp = MLP(hidden_dim, mlp_multiplier)
+        match activation_type:
+            case "normal":
+                self.mlp = MLP(hidden_dim, mlp_multiplier)
+            case "snake":
+                self.mlp = SnakeMLP(hidden_dim, mlp_multiplier)
+            case _:
+                raise ValueError(
+                    f"Unknown activation type: {activation_type}, supported types: normal, snake"
+                )
         self._dropout = nn.Dropout(p=dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -168,6 +200,7 @@ class ARTransformerTRM(Core):
         seq_delimiter: int = 4096,
         dropout: float = 0.1,
         vocab_size: int = 65,
+        mlp_type: Literal["normal", "snake"] = "normal",
     ) -> None:
         """
         Initializer
@@ -190,6 +223,7 @@ class ARTransformerTRM(Core):
         self._dropout = dropout
         self._seq_delimiter = seq_delimiter
         self._vocab_size = vocab_size
+        self._mlp_type = mlp_type
 
         self._transformer_encoder = nn.Sequential(
             *[
@@ -200,6 +234,7 @@ class ARTransformerTRM(Core):
                     layer_idx=i,
                     is_causal=True,
                     dropout=dropout,
+                    activation_type=mlp_type,
                 )
                 for i in range(num_layers)
             ]
