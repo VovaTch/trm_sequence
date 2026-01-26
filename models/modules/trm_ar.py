@@ -383,7 +383,6 @@ class ARLanguageTRMModule(BaseLightningModule):
                 entropy = -torch.sum(probs * torch.log(probs + 1e-8), dim=-1)
                 max_entropy = math.log(outputs.shape[-1])
                 certainty = 1 - (entropy / max_entropy)
-                print(f"{certainty=}")
                 if torch.all(certainty >= certainty_cutoff):
                     break
 
