@@ -163,12 +163,12 @@ class TinyRecursiveModel(nn.Module):
                     input, output, latent
                 )
                 total_latents.extend(all_latents)
-                total_outputs.append(output)
+                total_outputs.append(output.detach())
         output, latent, all_latents = self.verbose_latent_recursion(
             input, output, latent
         )
         total_latents.extend(all_latents)
-        total_outputs.append(output)
+        total_outputs.append(output.detach())
 
         head_outputs = self._output_head(output)
         output_probs = head_outputs[:, -1, :].softmax(dim=-1)

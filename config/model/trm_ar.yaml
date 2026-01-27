@@ -7,6 +7,7 @@ core:
   seq_delimiter: 4096
   dropout: 0.0
   vocab_size: 65
+  mlp_type: snake
 z_loop: 6
 y_loop: 3
 input_embedding:

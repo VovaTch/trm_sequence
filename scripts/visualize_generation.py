@@ -40,6 +40,7 @@ def load_module(
 def create_latent_video(
     latents: list[list[torch.Tensor]],
     outputs: list[list[torch.Tensor]],
+    probs: list[list[torch.Tensor]],
     tokens: torch.Tensor,
     certainties: list[list[float]],
     tokenizer,
@@ -63,9 +64,12 @@ def create_latent_video(
 
     len_init_text = 0
 
-    for token_idx, (token_latents, token_outputs, token_certainties) in enumerate(
-        zip(latents, outputs, certainties)
-    ):
+    for token_idx, (
+        token_latents,
+        token_outputs,
+        token_certainties,
+        token_probs,
+    ) in enumerate(zip(latents, outputs, certainties, probs)):
         if token_idx == 0:
             len_init_text = token_latents[0].shape[1]
         current_tokens = tokens[batch_idx, : len_init_text + token_idx].tolist()
@@ -77,6 +81,7 @@ def create_latent_video(
         # token_latents has frames from all deep recursion cycles
         # token_certainties has one certainty per deep recursion cycle
         num_certainties = len(token_certainties)
+        num_probs = len(token_probs)
         num_frames = len(token_latents)
         frames_per_cycle = (
             num_frames // num_certainties if num_certainties > 0 else num_frames
@@ -95,11 +100,11 @@ def create_latent_video(
             frame_certainty = (
                 token_certainties[certainty_idx] if num_certainties > 0 else 0.0
             )
-
-            # Compute output probabilities for the latest token
-            output_probs = torch.softmax(
-                torch.from_numpy(output_np[-1, :]), dim=-1
-            ).numpy()
+            frame_probs = (
+                token_probs[certainty_idx].squeeze().cpu().numpy()
+                if num_probs > 0
+                else None
+            )
 
             all_frames.append(
                 {
@@ -109,7 +114,7 @@ def create_latent_video(
                     "step_idx": step_idx,
                     "text": current_text,
                     "certainty": frame_certainty,
-                    "output_probs": output_probs,
+                    "output_probs": frame_probs,
                 }
             )
 
@@ -344,6 +349,7 @@ def main():
     create_latent_video(
         latents=result["all_latents"],
         outputs=result["all_outputs"],
+        probs=result["all_probs"],
         tokens=result["tokens"],
         certainties=result["all_certainties"],
         tokenizer=tokenizer,

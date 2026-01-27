@@ -22,6 +22,7 @@ class VerboseGenerationOutput(TypedDict):
     all_latents: list[list[torch.Tensor]]
     all_outputs: list[list[torch.Tensor]]
     all_certainties: list[list[float]]
+    all_probs: list[list[torch.Tensor]]
 
 
 class ARLanguageTRMModule(BaseLightningModule):
@@ -324,19 +325,20 @@ class ARLanguageTRMModule(BaseLightningModule):
         list[torch.Tensor],
         list[torch.Tensor],
         list[float],
+        list[torch.Tensor],
     ]:
         """
         Generates a single token batch with verbose output (all latents and outputs).
 
         Args:
-            input_seq (torch.Tensor): The input sequence.
+            input_seq (tiorch.Tensor): The input sequence.
             temperature (float, optional): The temperature of the softmax distribution. Defaults to 0.7.
             top_k (int, optional): The number of top tokens to consider. Defaults to 0.
             y (torch.Tensor | None, optional): The intermediate output tensor. Defaults to None.
             z (torch.Tensor | None, optional): The latent tensor. Defaults to None.
 
         Returns:
-            tuple: sampled_tokens, y, z, all_latents, all_outputs
+            tuple: sampled_tokens, y, z, all_latents, all_outputs, all_certainties, all_probs
         """
         if temperature < 0:
             raise ValueError(f"Temperature must be non negative, got {temperature}")
@@ -366,6 +368,7 @@ class ARLanguageTRMModule(BaseLightningModule):
         all_latents: list[torch.Tensor] = []
         all_outputs: list[torch.Tensor] = []
         all_certainties: list[float] = []
+        all_probs: list[torch.Tensor] = []
         outputs = None
 
         for _ in range(self._supervision_steps):
@@ -376,10 +379,11 @@ class ARLanguageTRMModule(BaseLightningModule):
             all_outputs.extend(step_outputs)
             all_certainties.append(certainty)
             outputs = y_hat
+            probs = torch.softmax(outputs[:, -1, :], dim=-1)
+            all_probs.append(probs)
             # if torch.all(q_hat[:, -1] > 0): # TODO: address the Q-Hat problem
             #     break
             if certainty_cutoff > 0:
-                probs = torch.softmax(outputs[:, -1, :], dim=-1)
                 entropy = -torch.sum(probs * torch.log(probs + 1e-8), dim=-1)
                 max_entropy = math.log(outputs.shape[-1])
                 certainty = 1 - (entropy / max_entropy)
@@ -395,9 +399,18 @@ class ARLanguageTRMModule(BaseLightningModule):
 
         pre_softmax = outputs / (temperature + 1e-8)
         probs = torch.softmax(pre_softmax, dim=2)
+        all_probs.append(probs)
         dist = torch.distributions.Categorical(probs)
         sampled_tokens = dist.sample()
-        return sampled_tokens[:, -1:], y, z, all_latents, all_outputs, all_certainties
+        return (
+            sampled_tokens[:, -1:],
+            y,
+            z,
+            all_latents,
+            all_outputs,
+            all_certainties,
+            all_probs,
+        )
 
     @torch.inference_mode()
     def verbose_generate(
@@ -430,9 +443,10 @@ class ARLanguageTRMModule(BaseLightningModule):
         all_latents: list[list[torch.Tensor]] = []
         all_outputs: list[list[torch.Tensor]] = []
         all_certainties: list[list[float]] = []
+        all_probs: list[list[torch.Tensor]] = []
 
         for _ in range(max_seq_length - len(input_seq[-1])):
-            next_tokens, y, z, step_latents, step_outputs, certainties = (
+            next_tokens, y, z, step_latents, step_outputs, certainties, probs = (
                 self.verbose_generate_next_tokens(
                     output_seq, temperature, top_k, y, z, certainty_cutoff
                 )
@@ -440,6 +454,7 @@ class ARLanguageTRMModule(BaseLightningModule):
             all_latents.append(step_latents)
             all_outputs.append(step_outputs)
             all_certainties.append(certainties)
+            all_probs.append(probs)
             output_seq = torch.cat(
                 (output_seq, next_tokens),
                 dim=1,
@@ -450,6 +465,7 @@ class ARLanguageTRMModule(BaseLightningModule):
             all_latents=all_latents,
             all_outputs=all_outputs,
             all_certainties=all_certainties,
+            all_probs=all_probs,
         )
 
     def on_validation_start(self) -> None:
