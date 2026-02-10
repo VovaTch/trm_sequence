@@ -20,3 +20,10 @@ def sigmoid(x: torch.Tensor) -> torch.Tensor:
     Sigmoid transformation function.
     """
     return torch.sigmoid(x)
+
+
+def relu_square(x: torch.Tensor) -> torch.Tensor:
+    """
+    Squared relu activation function
+    """
+    return torch.relu(x).square()
