@@ -7,3 +7,4 @@ from .dllm_trm import (
     DiffusionSumTransformerTRM,
 )
 from .ar_trm import ARTransformerTRM
+from .mhc_ar_trm import mHCARTransformerTRM

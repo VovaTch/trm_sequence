@@ -1,0 +1,28 @@
+_target_: models.models.TinyRecursiveModel
+core:
+  _target_: models.models.backbone.mHCARTransformerTRM
+  hidden_dim: 192 # n * C = 4 * 48
+  num_layers: 4
+  num_heads: 1
+  expansion_rate: 4
+  sinkhorn_iterations: 20
+  alpha_init: 0.01
+  seq_delimiter: 4096
+  dropout: 0.0
+  vocab_size: 65
+  mlp_type: snake
+z_loop: 6
+y_loop: 3
+input_embedding:
+  _target_: models.models.backbone.InputEmbedding
+  embedding_dim: ${model.core.hidden_dim}
+  vocab_size: ${model.core.vocab_size}
+  additional_emb: false
+output_head:
+  _target_: models.models.backbone.LinearOutputHead
+  hidden_dim: ${model.core.hidden_dim}
+  vocab_size: ${model.core.vocab_size}
+q_head:
+  _target_: models.models.backbone.LinearQOutputHead
+  hidden_dim: ${model.core.hidden_dim}
+  seq_length: ${seq_length}

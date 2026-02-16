@@ -1,0 +1,17 @@
+defaults:
+  - _self_
+  - data: dllm
+  - learning: standard
+  - optimizer: adamw_standard
+  - scheduler: none
+  - loss: trm_ar
+  - model: mhc_trm_ar
+  - module: trm_ar
+
+project_name: LightningTemplate
+model_name: mhc_trm_ar
+resume: null
+
+# Optimizations
+use_torch_compile: False
+seq_length: 1024
